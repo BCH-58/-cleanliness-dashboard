@@ -661,7 +661,7 @@ function SupervisorDetail({ supId, supervisors, responses, onBack }) {
               <div key={r.id} className="rounded-xl px-3 py-2.5 flex items-center gap-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
                 <CalendarDays size={14} color={C.inkMuted} />
                 <div className="flex-1">
-                  <p style={{ fontSize: 12.5 }}>{r.date} {r.room && `· غرفة ${r.room}`}</p>
+                  <p style={{ fontSize: 12.5 }}>{r.date} {r.room && `· غرفة ${r.room}`} {r.patientName && `· ${r.patientName}`}</p>
                   {r.comment && <p style={{ fontSize: 11, color: C.inkMuted }} className="truncate">{r.comment}</p>}
                 </div>
                 <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 13, color: scoreColor(pct) }}>{Math.round(pct)}%</span>
@@ -936,21 +936,24 @@ function PinGate({ supervisor, onCancel, onSuccess }) {
 
 function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview }) {
   const [date] = useState(todayStr());
+  const [patientName, setPatientName] = useState('');
   const [room, setRoom] = useState('');
   const [ratings, setRatings] = useState({});
   const [comment, setComment] = useState('');
   const [flash, setFlash] = useState(false);
 
   const todaysCount = responses.filter(r => r.supervisorId === supervisor.id && r.date === date).length;
-  const complete = CRITERIA.every(c => ratings[c.id]);
+  const complete = CRITERIA.every(c => ratings[c.id]) && room.trim().length > 0 && patientName.trim().length > 0;
 
   const submit = () => {
     if (!complete) return;
-    onSubmit({ id: uid(), supervisorId: supervisor.id, date, room, ratings, comment });
+    onSubmit({ id: uid(), supervisorId: supervisor.id, date, room: room.trim(), patientName: patientName.trim(), ratings, comment });
 
-    // Reset for the next room; auto-advance a numeric room number.
+    // Reset for the next room; auto-advance a numeric room number, but the
+    // patient name always starts blank since it's specific to each patient.
     setRatings({});
     setComment('');
+    setPatientName('');
     setRoom(prev => {
       const n = parseInt(prev, 10);
       return Number.isFinite(n) ? String(n + 1) : '';
@@ -986,13 +989,23 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
         </div>
       )}
 
-      <div className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-        <label style={{ fontSize: 12, color: C.inkMuted, fontWeight: 600 }}>رقم الغرفة (اختياري)</label>
-        <input
-          type="text" value={room} onChange={e => setRoom(e.target.value)} placeholder="مثال: 214"
-          className="w-full mt-1.5 rounded-xl px-3 py-2.5 text-sm"
-          style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
-        />
+      <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+        <div>
+          <label style={{ fontSize: 12, color: C.inkMuted, fontWeight: 600 }}>اسم المريض <span style={{ color: C.red }}>*</span></label>
+          <input
+            type="text" value={patientName} onChange={e => setPatientName(e.target.value)} placeholder="اسم المريض"
+            className="w-full mt-1.5 rounded-xl px-3 py-2.5 text-sm"
+            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+          />
+        </div>
+        <div>
+          <label style={{ fontSize: 12, color: C.inkMuted, fontWeight: 600 }}>رقم الغرفة <span style={{ color: C.red }}>*</span></label>
+          <input
+            type="text" value={room} onChange={e => setRoom(e.target.value)} placeholder="مثال: 214"
+            className="w-full mt-1.5 rounded-xl px-3 py-2.5 text-sm"
+            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+          />
+        </div>
       </div>
 
       {CRITERIA.map((c, i) => (
