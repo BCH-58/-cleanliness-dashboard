@@ -537,14 +537,20 @@ function OverviewTab({ overallPct, positivePct, responses, supervisors, criteria
 function MonthlyExportCard({ responses, supervisors }) {
   const [month, setMonth] = useState(() => todayStr().slice(0, 7)); // YYYY-MM
   const [justExported, setJustExported] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const count = responses.filter((r) => r.date.startsWith(month)).length;
 
-  const handleExport = () => {
-    if (count === 0) return;
-    exportMonthlyReport({ responses, supervisors, criteria: CRITERIA, scale: SCALE, month });
-    setJustExported(true);
-    setTimeout(() => setJustExported(false), 2000);
+  const handleExport = async () => {
+    if (count === 0 || isExporting) return;
+    setIsExporting(true);
+    try {
+      await exportMonthlyReport({ responses, supervisors, criteria: CRITERIA, scale: SCALE, month });
+      setJustExported(true);
+      setTimeout(() => setJustExported(false), 2000);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -562,15 +568,21 @@ function MonthlyExportCard({ responses, supervisors }) {
           />
         </div>
         <p style={{ fontSize: 11.5, color: C.inkMuted }}>
-          {count > 0 ? `${count} استبيان مسجّل هذا الشهر` : 'لا توجد استبيانات في هذا الشهر'}
+          {count > 0 ? `${count} استبيان مسجّل هذا الشهر — الملف يتضمّن ورقة ملخص برسم بياني وورقة بيانات كاملة` : 'لا توجد استبيانات في هذا الشهر'}
         </p>
         <button
           onClick={handleExport}
-          disabled={count === 0}
+          disabled={count === 0 || isExporting}
           className="rounded-xl py-2.5 text-sm font-bold flex items-center justify-center gap-2"
           style={{ background: count > 0 ? C.primary : C.border, color: count > 0 ? '#fff' : C.inkMuted }}
         >
-          {justExported ? <><CheckCircle2 size={16} /> تم التنزيل</> : <><Download size={16} /> تصدير Excel</>}
+          {isExporting ? (
+            'جاري التجهيز...'
+          ) : justExported ? (
+            <><CheckCircle2 size={16} /> تم التنزيل</>
+          ) : (
+            <><Download size={16} /> تصدير Excel</>
+          )}
         </button>
       </div>
     </section>
