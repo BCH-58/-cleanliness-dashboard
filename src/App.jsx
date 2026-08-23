@@ -398,6 +398,9 @@ export default function App() {
             supervisors={supervisors}
             responses={responses}
             onBack={() => setSelectedSupId(null)}
+            onClearResponses={async (supervisorId) => {
+              await persistResponses(responses.filter(r => r.supervisorId !== supervisorId));
+            }}
           />
         )}
 
@@ -597,10 +600,11 @@ function SupervisorsTab({ supervisorStats, onSelect, goManage }) {
   );
 }
 
-function SupervisorDetail({ supId, supervisors, responses, onBack }) {
+function SupervisorDetail({ supId, supervisors, responses, onBack, onClearResponses }) {
   const sup = supervisors.find(s => s.id === supId);
   const rs = responses.filter(r => r.supervisorId === supId).sort((a, b) => b.date.localeCompare(a.date));
   const [expandedId, setExpandedId] = useState(null);
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   const criteriaAverages = CRITERIA.map(c => {
     const vals = rs.map(r => r.ratings[c.id]);
@@ -613,11 +617,54 @@ function SupervisorDetail({ supId, supervisors, responses, onBack }) {
 
   if (!sup) return null;
 
+  const handleClear = async () => {
+    await onClearResponses(supId);
+    setConfirmingClear(false);
+  };
+
   return (
     <div className="flex flex-col gap-4">
-      <button onClick={onBack} className="flex items-center gap-1 text-sm" style={{ color: C.primary }}>
-        <ArrowRight size={15} style={{ transform: 'rotate(180deg)' }} /> رجوع
-      </button>
+      <div className="flex items-center justify-between">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm" style={{ color: C.primary }}>
+          <ArrowRight size={15} style={{ transform: 'rotate(180deg)' }} /> رجوع
+        </button>
+        {rs.length > 0 && !confirmingClear && (
+          <button
+            onClick={() => setConfirmingClear(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg"
+            style={{ background: C.redSoft, color: C.red }}
+          >
+            <Trash2 size={13} /> حذف كل التقييمات
+          </button>
+        )}
+      </div>
+
+      {confirmingClear && (
+        <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: C.redSoft, border: `1px solid ${C.red}40` }}>
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={16} color={C.red} style={{ marginTop: 2, flexShrink: 0 }} />
+            <p style={{ fontSize: 12.5, color: C.ink }}>
+              بيتم حذف <span style={{ fontWeight: 700 }}>{rs.length}</span> استبيان مسجّل لـ{sup.name} نهائيًا، وما يرجع بعد الحذف. متأكد؟
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleClear}
+              className="flex-1 rounded-xl py-2 text-xs font-bold"
+              style={{ background: C.red, color: '#fff' }}
+            >
+              نعم، احذف الكل
+            </button>
+            <button
+              onClick={() => setConfirmingClear(false)}
+              className="flex-1 rounded-xl py-2 text-xs font-semibold"
+              style={{ background: C.surface, color: C.inkMuted, border: `1px solid ${C.border}` }}
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-3xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
         <p style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 18 }}>{sup.name}</p>
