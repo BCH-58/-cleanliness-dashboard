@@ -1,26 +1,1164 @@
-{
-  "name": "cleanliness-dashboard",
-  "private": true,
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "firebase": "^10.12.2",
-    "lucide-react": "^0.383.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "recharts": "^2.12.7",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.1",
-    "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.38",
-    "tailwindcss": "^3.4.3",
-    "vite": "^5.2.11"
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, Cell, LabelList
+} from 'recharts';
+import {
+  Sparkles, Droplets, Users, ClipboardList, TrendingUp, TrendingDown, AlertTriangle,
+  CheckCircle2, Settings, Plus, Trash2, X, ChevronRight, Building2, CalendarDays,
+  ArrowRight, Activity, LayoutGrid, Lock, LockOpen, ShieldCheck, Link as LinkIcon, Download
+} from 'lucide-react';
+import { subscribe, writeData } from './lib/storage';
+import { sha256Hex, isValidHash } from './lib/hash';
+import { exportMonthlyReport } from './lib/export';
+
+// ---------------------------------------------------------------------------
+// Tokens
+// ---------------------------------------------------------------------------
+const C = {
+  bg: '#F4F8F7',
+  surface: '#FFFFFF',
+  ink: '#16302D',
+  inkMuted: '#5E7975',
+  border: '#DCE8E5',
+  primary: '#0E5C55',
+  primarySoft: '#E1EEEB',
+  primaryDeep: '#0A423D',
+  amber: '#DE9A34',
+  amberSoft: '#FBEEDA',
+  red: '#C64B4B',
+  redSoft: '#FBE7E7',
+  green: '#3E8F72',
+};
+
+const CRITERIA = [
+  { id: 'room', label: 'نظافة غرفة المريض بشكل عام', short: 'غرفة المريض', icon: LayoutGrid },
+  { id: 'bathroom', label: 'نظافة دورات المياه', short: 'دورات المياه', icon: Droplets },
+  { id: 'floor', label: 'نظافة الأرضيات في القسم', short: 'الأرضيات', icon: Sparkles },
+  { id: 'supplies', label: 'توفر أدوات النظافة (المناديل والصابون)', short: 'الأدوات والمستلزمات', icon: ClipboardList },
+  { id: 'response', label: 'استجابة العامل/ة عند الطلب', short: 'سرعة الاستجابة', icon: Activity },
+];
+
+const SCALE = [
+  { value: 4, label: 'ممتاز', color: C.primary },
+  { value: 3, label: 'جيد جدا', color: '#4E9C8F' },
+  { value: 2, label: 'مقبول', color: C.amber },
+  { value: 1, label: 'سيء', color: C.red },
+];
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
+function scoreColor(pct) {
+  if (pct >= 85) return C.primary;
+  if (pct >= 70) return C.green;
+  if (pct >= 55) return C.amber;
+  return C.red;
+}
+function scoreLabel(pct) {
+  if (pct >= 85) return 'ممتاز';
+  if (pct >= 70) return 'جيد';
+  if (pct >= 55) return 'مقبول';
+  return 'يحتاج متابعة';
+}
+
+// ---------------------------------------------------------------------------
+// Storage helpers
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Small building blocks
+// ---------------------------------------------------------------------------
+function GaugePulse({ pct, count }) {
+  const color = scoreColor(pct);
+  const r = 74;
+  const circumference = 2 * Math.PI * r;
+  const dash = (pct / 100) * circumference;
+
+  // ECG-style waveform whose peak height reflects the score
+  const amp = 6 + (pct / 100) * 22;
+  const path = `M0,40 L30,40 L40,${40 - amp * 0.3} L50,${40 + amp} L62,${40 - amp * 1.3} L74,40 L104,40 L114,${40 - amp * 0.3} L124,${40 + amp} L136,${40 - amp * 1.3} L148,40 L200,40`;
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative" style={{ width: 190, height: 190 }}>
+        <svg width="190" height="190" viewBox="0 0 190 190">
+          <circle cx="95" cy="95" r={r} fill="none" stroke={C.border} strokeWidth="14" />
+          <circle
+            cx="95" cy="95" r={r} fill="none" stroke={color} strokeWidth="14"
+            strokeDasharray={`${dash} ${circumference}`}
+            strokeLinecap="round"
+            transform="rotate(-90 95 95)"
+            style={{ transition: 'stroke-dasharray 0.8s ease' }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 40, color: C.ink, lineHeight: 1 }}>
+            {Math.round(pct)}%
+          </span>
+          <span style={{ color, fontWeight: 700, fontSize: 13, marginTop: 4 }}>{scoreLabel(pct)}</span>
+        </div>
+      </div>
+      <div className="w-full mt-1" style={{ maxWidth: 200 }}>
+        <svg viewBox="0 0 200 80" width="100%" height="46">
+          <path d={path} fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
+            <animate attributeName="stroke-dasharray" from="0,600" to="600,0" dur="2.4s" repeatCount="indefinite" />
+          </path>
+        </svg>
+      </div>
+      <p style={{ color: C.inkMuted, fontSize: 12 }}>{count} استبيان مسجّل</p>
+    </div>
+  );
+}
+
+function StatPill({ icon: Icon, label, value, sub }) {
+  return (
+    <div className="rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+      <div className="rounded-xl p-2" style={{ background: C.primarySoft }}>
+        <Icon size={18} color={C.primary} />
+      </div>
+      <div>
+        <p style={{ fontSize: 12, color: C.inkMuted }}>{label}</p>
+        <p style={{ fontSize: 18, fontWeight: 800, color: C.ink, fontFamily: 'Tajawal' }}>{value}</p>
+        {sub && <p style={{ fontSize: 11, color: C.inkMuted }}>{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+function RatingPicker({ value, onChange }) {
+  return (
+    <div className="grid grid-cols-4 gap-2">
+      {SCALE.map(s => {
+        const active = value === s.value;
+        return (
+          <button
+            type="button"
+            key={s.value}
+            onClick={() => onChange(s.value)}
+            className="rounded-xl py-2 text-sm font-semibold transition-all"
+            style={{
+              background: active ? s.color : C.bg,
+              color: active ? '#fff' : C.inkMuted,
+              border: `1px solid ${active ? s.color : C.border}`,
+            }}
+          >
+            {s.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CustomBarTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className="rounded-lg px-3 py-2 text-xs" style={{ background: C.primaryDeep, color: '#fff' }}>
+      <p className="font-semibold mb-1">{label}</p>
+      <p>{payload[0].value}%</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main App
+// ---------------------------------------------------------------------------
+export default function App() {
+  const [loaded, setLoaded] = useState(false);
+  const [supervisors, setSupervisors] = useState([]);
+  const [responses, setResponses] = useState([]);
+  const [tab, setTab] = useState('round'); // round | overview | supervisors | manage
+  const [selectedSupId, setSelectedSupId] = useState(null);
+
+  // A supervisor's personal link looks like ?s=<their id> — read once on
+  // load so their round view skips straight to their own PIN screen.
+  const [presetSupId] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('s');
+    } catch {
+      return null;
+    }
+  });
+
+  // Manager-only access: overview / supervisors / manage stay hidden and
+  // locked behind a manager PIN. Unlock lasts for this session only.
+  const [managerPin, setManagerPin] = useState(null);
+  const [managerUnlocked, setManagerUnlocked] = useState(false);
+  const [gateOpen, setGateOpen] = useState(false);
+  const [pendingTab, setPendingTab] = useState(null);
+
+  // Live subscriptions: every device (manager or any supervisor) reads and
+  // writes the same Firebase Realtime Database paths, so a submission from
+  // a supervisor's phone appears on the manager's screen automatically —
+  // no manual refresh needed.
+  useEffect(() => {
+    let sReady = false, rReady = false, mReady = false;
+    const checkLoaded = () => { if (sReady && rReady && mReady) setLoaded(true); };
+
+    const unsubSup = subscribe('supervisors', (v) => { setSupervisors(v); sReady = true; checkLoaded(); }, []);
+    const unsubResp = subscribe('responses', (v) => { setResponses(v); rReady = true; checkLoaded(); }, []);
+    const unsubPin = subscribe('managerPin', (v) => { setManagerPin(v); mReady = true; checkLoaded(); }, null);
+
+    return () => { unsubSup(); unsubResp(); unsubPin(); };
+  }, []);
+
+  const persistSupervisors = async (next) => {
+    setSupervisors(next);
+    await writeData('supervisors', next);
+  };
+  const persistResponses = async (next) => {
+    setResponses(next);
+    await writeData('responses', next);
+  };
+  const persistManagerPin = async (pin) => {
+    setManagerPin(pin);
+    await writeData('managerPin', pin);
+  };
+
+  const requestManagerTab = (targetTab) => {
+    if (managerUnlocked) {
+      setTab(targetTab);
+    } else {
+      setPendingTab(targetTab);
+      setGateOpen(true);
+    }
+  };
+
+  const lockManager = () => {
+    setManagerUnlocked(false);
+    setTab('round');
+    setSelectedSupId(null);
+  };
+
+  // --------------------------- derived metrics ---------------------------
+  const allRatingsFlat = useMemo(() => {
+    const out = [];
+    responses.forEach(r => CRITERIA.forEach(c => out.push(r.ratings[c.id])));
+    return out;
+  }, [responses]);
+
+  const overallPct = allRatingsFlat.length
+    ? ((allRatingsFlat.reduce((a, b) => a + b, 0) / allRatingsFlat.length - 1) / 3) * 100
+    : 0;
+
+  const positivePct = allRatingsFlat.length
+    ? (allRatingsFlat.filter(v => v >= 3).length / allRatingsFlat.length) * 100
+    : 0;
+
+  const criteriaAverages = useMemo(() => {
+    return CRITERIA.map(c => {
+      const vals = responses.map(r => r.ratings[c.id]);
+      const pct = vals.length ? ((vals.reduce((a, b) => a + b, 0) / vals.length - 1) / 3) * 100 : 0;
+      return { ...c, pct: Math.round(pct) };
+    });
+  }, [responses]);
+
+  const supervisorStats = useMemo(() => {
+    return supervisors.map(s => {
+      const rs = responses.filter(r => r.supervisorId === s.id);
+      const vals = [];
+      rs.forEach(r => CRITERIA.forEach(c => vals.push(r.ratings[c.id])));
+      const pct = vals.length ? ((vals.reduce((a, b) => a + b, 0) / vals.length - 1) / 3) * 100 : null;
+      return { ...s, count: rs.length, pct };
+    }).sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1));
+  }, [supervisors, responses]);
+
+  const trendData = useMemo(() => {
+    const byDate = {};
+    responses.forEach(r => {
+      const vals = CRITERIA.map(c => r.ratings[c.id]);
+      const avgPct = ((vals.reduce((a, b) => a + b, 0) / vals.length - 1) / 3) * 100;
+      if (!byDate[r.date]) byDate[r.date] = [];
+      byDate[r.date].push(avgPct);
+    });
+    return Object.entries(byDate)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, vals]) => ({
+        date: date.slice(5),
+        score: Math.round(vals.reduce((a, b) => a + b, 0) / vals.length),
+      }));
+  }, [responses]);
+
+  const lowPerformer = supervisorStats.filter(s => s.pct !== null).slice(-1)[0];
+
+  if (!loaded) {
+    return (
+      <div className="flex items-center justify-center h-screen" style={{ background: C.bg }}>
+        <p style={{ color: C.inkMuted, fontFamily: 'Tajawal' }}>...جارِ التحميل</p>
+      </div>
+    );
   }
+
+  return (
+    <div dir="rtl" className="min-h-screen w-full" style={{ background: C.bg, fontFamily: 'IBM Plex Sans Arabic, sans-serif', color: C.ink }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { height: 6px; width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #C7D9D6; border-radius: 10px; }
+      `}</style>
+
+      {/* Header */}
+      <header className="sticky top-0 z-20 px-4 pt-4 pb-3" style={{ background: C.primaryDeep }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="rounded-xl p-2" style={{ background: 'rgba(255,255,255,0.12)' }}>
+              <Droplets size={20} color="#fff" />
+            </div>
+            <div>
+              <h1 style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 17, color: '#fff' }}>لوحة متابعة النظافة</h1>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>مبنية على استبيان رضا المرضى عن النظافة</p>
+            </div>
+          </div>
+
+          {managerUnlocked ? (
+            <button
+              onClick={lockManager}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold"
+              style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}
+              title="قفل لوحة المدير"
+            >
+              <LockOpen size={13} /> قفل
+            </button>
+          ) : (
+            <button
+              onClick={() => requestManagerTab('overview')}
+              className="p-2 rounded-full"
+              style={{ background: 'rgba(255,255,255,0.1)' }}
+              title="دخول المدير"
+            >
+              <Lock size={15} color="rgba(255,255,255,0.75)" />
+            </button>
+          )}
+        </div>
+
+        {/* Tabs — manager tabs only appear once unlocked with the PIN */}
+        <div className="flex gap-1 mt-4 overflow-x-auto pb-1">
+          {[
+            { id: 'round', label: 'جولة الميدان', icon: Plus, protected: false },
+            ...(managerUnlocked ? [
+              { id: 'overview', label: 'نظرة عامة', icon: TrendingUp, protected: true },
+              { id: 'supervisors', label: 'المشرفون', icon: Users, protected: true },
+              { id: 'manage', label: 'الإعدادات', icon: Settings, protected: true },
+            ] : []),
+          ].map(t => {
+            const Icon = t.icon;
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => { t.protected ? requestManagerTab(t.id) : setTab(t.id); setSelectedSupId(null); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all"
+                style={{
+                  background: active ? '#fff' : 'rgba(255,255,255,0.08)',
+                  color: active ? C.primaryDeep : 'rgba(255,255,255,0.8)',
+                }}
+              >
+                <Icon size={13} />
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </header>
+
+      {gateOpen && (
+        <ManagerGate
+          hasPin={isValidHash(managerPin)}
+          managerPin={managerPin}
+          onCreate={async (pinHash) => {
+            await persistManagerPin(pinHash);
+            setManagerUnlocked(true);
+            setGateOpen(false);
+            setTab(pendingTab || 'overview');
+          }}
+          onSuccess={() => {
+            setManagerUnlocked(true);
+            setGateOpen(false);
+            setTab(pendingTab || 'overview');
+          }}
+          onCancel={() => setGateOpen(false)}
+        />
+      )}
+
+      <main className="px-4 py-4 pb-10 max-w-2xl mx-auto">
+        {tab === 'overview' && managerUnlocked && (
+          <OverviewTab
+            overallPct={overallPct}
+            positivePct={positivePct}
+            responses={responses}
+            supervisors={supervisors}
+            criteriaAverages={criteriaAverages}
+            supervisorStats={supervisorStats}
+            trendData={trendData}
+            lowPerformer={lowPerformer}
+            goEntry={() => setTab('round')}
+          />
+        )}
+
+        {tab === 'supervisors' && managerUnlocked && !selectedSupId && (
+          <SupervisorsTab
+            supervisorStats={supervisorStats}
+            onSelect={setSelectedSupId}
+            goManage={() => requestManagerTab('manage')}
+          />
+        )}
+
+        {tab === 'supervisors' && managerUnlocked && selectedSupId && (
+          <SupervisorDetail
+            supId={selectedSupId}
+            supervisors={supervisors}
+            responses={responses}
+            onBack={() => setSelectedSupId(null)}
+            onClearResponses={async (supervisorId) => {
+              await persistResponses(responses.filter(r => r.supervisorId !== supervisorId));
+            }}
+          />
+        )}
+
+        {tab === 'round' && (
+          <RoundTab
+            supervisors={supervisors}
+            responses={responses}
+            presetSupId={presetSupId}
+            onSubmit={async (entry) => {
+              await persistResponses([...responses, entry]);
+            }}
+            goManage={() => requestManagerTab('manage')}
+            goOverview={() => requestManagerTab('overview')}
+          />
+        )}
+
+        {tab === 'manage' && managerUnlocked && (
+          <ManageTab
+            supervisors={supervisors}
+            responses={responses}
+            onAdd={async (s) => await persistSupervisors([...supervisors, s])}
+            onRemove={async (id) => {
+              await persistSupervisors(supervisors.filter(s => s.id !== id));
+              await persistResponses(responses.filter(r => r.supervisorId !== id));
+            }}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Overview
+// ---------------------------------------------------------------------------
+function OverviewTab({ overallPct, positivePct, responses, supervisors, criteriaAverages, supervisorStats, trendData, lowPerformer, goEntry }) {
+  if (supervisors.length === 0) {
+    return <EmptyState message="ابدأ بإضافة المشرفين والأقسام من تبويب الإعدادات." icon={Users} />;
+  }
+  if (responses.length === 0) {
+    return (
+      <EmptyState
+        message="لا توجد استبيانات مسجّلة بعد. سجّل أول استبيان لتبدأ رؤية المؤشرات."
+        icon={ClipboardList}
+        action={{ label: 'تسجيل استبيان', onClick: goEntry }}
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-3xl p-5 flex flex-col items-center" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+        <p style={{ fontSize: 12, color: C.inkMuted, alignSelf: 'flex-start' }}>المؤشر العام للنظافة</p>
+        <GaugePulse pct={overallPct} count={responses.length} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <StatPill icon={CheckCircle2} label="نسبة الرضا الإيجابي" value={`${Math.round(positivePct)}%`} sub="ممتاز + جيد جدا" />
+        <StatPill icon={Users} label="عدد المشرفين" value={supervisors.length} sub={`${responses.length} استبيان`} />
+      </div>
+
+      {lowPerformer && lowPerformer.pct !== null && lowPerformer.pct < 70 && (
+        <div className="rounded-2xl p-3 flex items-center gap-3" style={{ background: C.redSoft, border: `1px solid ${C.red}30` }}>
+          <AlertTriangle size={18} color={C.red} />
+          <p style={{ fontSize: 12.5, color: C.ink }}>
+            <span style={{ fontWeight: 700 }}>{lowPerformer.name}</span> ({lowPerformer.department}) بحاجة لمتابعة — المؤشر {Math.round(lowPerformer.pct)}%
+          </p>
+        </div>
+      )}
+
+      <section>
+        <h2 style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>المؤشر حسب بند الاستبيان</h2>
+        <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <ResponsiveContainer width="100%" height={210}>
+            <BarChart data={criteriaAverages} layout="vertical" margin={{ left: 0, right: 20 }}>
+              <CartesianGrid horizontal={false} stroke={C.border} />
+              <XAxis type="number" domain={[0, 100]} hide />
+              <YAxis type="category" dataKey="short" width={100} tick={{ fontSize: 11, fill: C.ink }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomBarTooltip />} cursor={{ fill: C.bg }} />
+              <Bar dataKey="pct" radius={[6, 6, 6, 6]} barSize={16}>
+                {criteriaAverages.map((c, i) => <Cell key={i} fill={scoreColor(c.pct)} />)}
+                <LabelList dataKey="pct" position="right" formatter={(v) => `${v}%`} style={{ fontSize: 11, fill: C.inkMuted, fontWeight: 600 }} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      {trendData.length > 1 && (
+        <section>
+          <h2 style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>اتجاه المؤشر عبر الوقت</h2>
+          <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={trendData} margin={{ left: -20, right: 10 }}>
+                <CartesianGrid stroke={C.border} vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: C.inkMuted }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: C.inkMuted }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomBarTooltip />} />
+                <Line type="monotone" dataKey="score" stroke={C.primary} strokeWidth={2.5} dot={{ r: 3, fill: C.primary }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
+
+      <section>
+        <div className="flex items-center justify-between mb-2">
+          <h2 style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14 }}>ترتيب المشرفين</h2>
+        </div>
+        <div className="flex flex-col gap-2">
+          {supervisorStats.slice(0, 5).map((s, i) => (
+            <SupervisorRow key={s.id} s={s} rank={i + 1} />
+          ))}
+        </div>
+      </section>
+
+      <MonthlyExportCard responses={responses} supervisors={supervisors} />
+    </div>
+  );
+}
+
+function MonthlyExportCard({ responses, supervisors }) {
+  const [month, setMonth] = useState(() => todayStr().slice(0, 7)); // YYYY-MM
+  const [justExported, setJustExported] = useState(false);
+
+  const count = responses.filter((r) => r.date.startsWith(month)).length;
+
+  const handleExport = () => {
+    if (count === 0) return;
+    exportMonthlyReport({ responses, supervisors, criteria: CRITERIA, scale: SCALE, month });
+    setJustExported(true);
+    setTimeout(() => setJustExported(false), 2000);
+  };
+
+  return (
+    <section>
+      <h2 style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>تصدير تقرير شهري</h2>
+      <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+        <div>
+          <label style={{ fontSize: 12, color: C.inkMuted, fontWeight: 600 }}>اختر الشهر</label>
+          <input
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="w-full mt-1.5 rounded-xl px-3 py-2.5 text-sm"
+            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+          />
+        </div>
+        <p style={{ fontSize: 11.5, color: C.inkMuted }}>
+          {count > 0 ? `${count} استبيان مسجّل هذا الشهر` : 'لا توجد استبيانات في هذا الشهر'}
+        </p>
+        <button
+          onClick={handleExport}
+          disabled={count === 0}
+          className="rounded-xl py-2.5 text-sm font-bold flex items-center justify-center gap-2"
+          style={{ background: count > 0 ? C.primary : C.border, color: count > 0 ? '#fff' : C.inkMuted }}
+        >
+          {justExported ? <><CheckCircle2 size={16} /> تم التنزيل</> : <><Download size={16} /> تصدير Excel</>}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function SupervisorRow({ s, rank }) {
+  const pct = s.pct ?? 0;
+  const color = s.pct === null ? C.inkMuted : scoreColor(pct);
+  return (
+    <div className="rounded-xl px-3 py-2.5 flex items-center gap-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+      <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 13, color: C.inkMuted, width: 18 }}>{rank}</span>
+      <div className="flex-1 min-w-0">
+        <p style={{ fontSize: 13, fontWeight: 700, color: C.ink }} className="truncate">{s.name}</p>
+        <p style={{ fontSize: 11, color: C.inkMuted }} className="truncate">{s.department}</p>
+      </div>
+      {s.pct === null ? (
+        <span style={{ fontSize: 11, color: C.inkMuted }}>لا بيانات</span>
+      ) : (
+        <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 15, color }}>{Math.round(pct)}%</span>
+      )}
+    </div>
+  );
+}
+
+function EmptyState({ message, icon: Icon, action }) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center py-16 rounded-3xl" style={{ background: C.surface, border: `1px dashed ${C.border}` }}>
+      <div className="rounded-2xl p-3 mb-3" style={{ background: C.primarySoft }}>
+        <Icon size={22} color={C.primary} />
+      </div>
+      <p style={{ fontSize: 13, color: C.inkMuted, maxWidth: 240 }}>{message}</p>
+      {action && (
+        <button
+          onClick={action.onClick}
+          className="mt-4 px-4 py-2 rounded-xl text-sm font-semibold"
+          style={{ background: C.primary, color: '#fff' }}
+        >
+          {action.label}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Supervisors list + detail
+// ---------------------------------------------------------------------------
+function SupervisorsTab({ supervisorStats, onSelect, goManage }) {
+  if (supervisorStats.length === 0) {
+    return <EmptyState message="لم تتم إضافة أي مشرف بعد." icon={Users} action={{ label: 'إضافة مشرف', onClick: goManage }} />;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {supervisorStats.map(s => {
+        const pct = s.pct ?? 0;
+        const color = s.pct === null ? C.inkMuted : scoreColor(pct);
+        return (
+          <button
+            key={s.id}
+            onClick={() => onSelect(s.id)}
+            className="rounded-2xl px-4 py-3 flex items-center gap-3 text-right"
+            style={{ background: C.surface, border: `1px solid ${C.border}` }}
+          >
+            <div className="rounded-xl p-2" style={{ background: C.primarySoft }}>
+              <Building2 size={17} color={C.primary} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p style={{ fontSize: 14, fontWeight: 700 }} className="truncate">{s.name}</p>
+              <p style={{ fontSize: 11.5, color: C.inkMuted }} className="truncate">{s.department} · {s.count} استبيان</p>
+            </div>
+            {s.pct !== null ? (
+              <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 16, color }}>{Math.round(pct)}%</span>
+            ) : (
+              <span style={{ fontSize: 11, color: C.inkMuted }}>لا بيانات</span>
+            )}
+            <ChevronRight size={16} color={C.inkMuted} style={{ transform: 'rotate(180deg)' }} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SupervisorDetail({ supId, supervisors, responses, onBack, onClearResponses }) {
+  const sup = supervisors.find(s => s.id === supId);
+  const rs = responses.filter(r => r.supervisorId === supId).sort((a, b) => b.date.localeCompare(a.date));
+  const [expandedId, setExpandedId] = useState(null);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+
+  const criteriaAverages = CRITERIA.map(c => {
+    const vals = rs.map(r => r.ratings[c.id]);
+    const pct = vals.length ? ((vals.reduce((a, b) => a + b, 0) / vals.length - 1) / 3) * 100 : 0;
+    return { ...c, pct: Math.round(pct) };
+  });
+  const overall = rs.length
+    ? criteriaAverages.reduce((a, b) => a + b.pct, 0) / criteriaAverages.length
+    : 0;
+
+  if (!sup) return null;
+
+  const handleClear = async () => {
+    await onClearResponses(supId);
+    setConfirmingClear(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm" style={{ color: C.primary }}>
+          <ArrowRight size={15} style={{ transform: 'rotate(180deg)' }} /> رجوع
+        </button>
+        {rs.length > 0 && !confirmingClear && (
+          <button
+            onClick={() => setConfirmingClear(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg"
+            style={{ background: C.redSoft, color: C.red }}
+          >
+            <Trash2 size={13} /> حذف كل التقييمات
+          </button>
+        )}
+      </div>
+
+      {confirmingClear && (
+        <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: C.redSoft, border: `1px solid ${C.red}40` }}>
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={16} color={C.red} style={{ marginTop: 2, flexShrink: 0 }} />
+            <p style={{ fontSize: 12.5, color: C.ink }}>
+              بيتم حذف <span style={{ fontWeight: 700 }}>{rs.length}</span> استبيان مسجّل لـ{sup.name} نهائيًا، وما يرجع بعد الحذف. متأكد؟
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleClear}
+              className="flex-1 rounded-xl py-2 text-xs font-bold"
+              style={{ background: C.red, color: '#fff' }}
+            >
+              نعم، احذف الكل
+            </button>
+            <button
+              onClick={() => setConfirmingClear(false)}
+              className="flex-1 rounded-xl py-2 text-xs font-semibold"
+              style={{ background: C.surface, color: C.inkMuted, border: `1px solid ${C.border}` }}
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-3xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+        <p style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 18 }}>{sup.name}</p>
+        <p style={{ fontSize: 12.5, color: C.inkMuted, marginBottom: 12 }}>{sup.department}</p>
+        {rs.length === 0 ? (
+          <p style={{ fontSize: 12.5, color: C.inkMuted }}>لا توجد استبيانات لهذا المشرف بعد.</p>
+        ) : (
+          <div className="flex items-center gap-4">
+            <span style={{ fontFamily: 'Tajawal', fontWeight: 900, fontSize: 34, color: scoreColor(overall) }}>{Math.round(overall)}%</span>
+            <div>
+              <p style={{ fontSize: 12, fontWeight: 700, color: scoreColor(overall) }}>{scoreLabel(overall)}</p>
+              <p style={{ fontSize: 11, color: C.inkMuted }}>{rs.length} استبيان مسجّل</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {rs.length > 0 && (
+        <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={criteriaAverages} layout="vertical" margin={{ left: 0, right: 20 }}>
+              <CartesianGrid horizontal={false} stroke={C.border} />
+              <XAxis type="number" domain={[0, 100]} hide />
+              <YAxis type="category" dataKey="short" width={100} tick={{ fontSize: 11, fill: C.ink }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomBarTooltip />} cursor={{ fill: C.bg }} />
+              <Bar dataKey="pct" radius={[6, 6, 6, 6]} barSize={16}>
+                {criteriaAverages.map((c, i) => <Cell key={i} fill={scoreColor(c.pct)} />)}
+                <LabelList dataKey="pct" position="right" formatter={(v) => `${v}%`} style={{ fontSize: 11, fill: C.inkMuted, fontWeight: 600 }} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <section>
+        <h2 style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>سجل الاستبيانات — اضغط أي غرفة لعرض التفاصيل</h2>
+        <div className="flex flex-col gap-2">
+          {rs.map(r => {
+            const vals = CRITERIA.map(c => r.ratings[c.id]);
+            const pct = ((vals.reduce((a, b) => a + b, 0) / vals.length - 1) / 3) * 100;
+            const isOpen = expandedId === r.id;
+            return (
+              <div key={r.id} className="rounded-xl overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                <button
+                  onClick={() => setExpandedId(isOpen ? null : r.id)}
+                  className="w-full px-3 py-2.5 flex items-center gap-3 text-right"
+                >
+                  <CalendarDays size={14} color={C.inkMuted} />
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontSize: 12.5 }} className="truncate">
+                      {r.date} {r.room && `· غرفة ${r.room}`} {r.patientName && `· ${r.patientName}`}
+                    </p>
+                    {r.comment && <p style={{ fontSize: 11, color: C.inkMuted }} className="truncate">{r.comment}</p>}
+                  </div>
+                  <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 13, color: scoreColor(pct) }}>{Math.round(pct)}%</span>
+                  <ChevronRight size={15} color={C.inkMuted} style={{ transform: isOpen ? 'rotate(-90deg)' : 'rotate(180deg)', transition: 'transform 0.15s' }} />
+                </button>
+
+                {isOpen && (
+                  <div className="px-3 pb-3 flex flex-col gap-1.5" style={{ borderTop: `1px solid ${C.border}` }}>
+                    {CRITERIA.map(c => {
+                      const v = r.ratings[c.id];
+                      const scaleItem = SCALE.find(s => s.value === v);
+                      return (
+                        <div key={c.id} className="flex items-center justify-between pt-1.5">
+                          <span style={{ fontSize: 12, color: C.ink }}>{c.label}</span>
+                          <span
+                            style={{
+                              fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 999,
+                              color: '#fff', background: scaleItem ? scaleItem.color : C.inkMuted,
+                            }}
+                          >
+                            {scaleItem ? scaleItem.label : '—'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Round mode — the supervisor carries this while walking room to room.
+// Pick yourself once, then log each patient in a few taps without leaving
+// the screen; the room number auto-advances and today's count stays visible.
+// ---------------------------------------------------------------------------
+function RoundTab({ supervisors, responses, presetSupId, onSubmit, goManage, goOverview }) {
+  const [supervisorId, setSupervisorId] = useState(null);
+  const [ignorePreset, setIgnorePreset] = useState(false);
+
+  if (supervisors.length === 0) {
+    return <EmptyState message="أضف مشرفًا وقسمًا أولًا من الإعدادات قبل بدء الجولة." icon={Users} action={{ label: 'إضافة مشرف', onClick: goManage }} />;
+  }
+
+  // Personal link (?s=<id>) opens straight into that supervisor's round —
+  // no name list, no PIN. "تبديل" falls back to the full list below.
+  const presetSup = !ignorePreset && presetSupId ? supervisors.find(s => s.id === presetSupId) : null;
+  const activeSupervisor = presetSup || supervisors.find(s => s.id === supervisorId);
+
+  if (!activeSupervisor) {
+    return <WhoAreYou supervisors={supervisors} onPick={setSupervisorId} />;
+  }
+
+  return (
+    <RoundSession
+      supervisor={activeSupervisor}
+      responses={responses}
+      onSubmit={onSubmit}
+      onSwitch={() => { setSupervisorId(null); setIgnorePreset(true); }}
+      goOverview={goOverview}
+    />
+  );
+}
+
+function WhoAreYou({ supervisors, onPick }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="text-center pt-4 pb-1">
+        <p style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 18 }}>من أنت؟</p>
+        <p style={{ fontSize: 12.5, color: C.inkMuted, marginTop: 4 }}>اختر اسمك لبدء الجولة</p>
+      </div>
+      <div className="flex flex-col gap-2">
+        {supervisors.map(s => (
+          <button
+            key={s.id}
+            onClick={() => onPick(s.id)}
+            className="rounded-2xl px-4 py-3.5 flex items-center gap-3 text-right"
+            style={{ background: C.surface, border: `1px solid ${C.border}` }}
+          >
+            <div className="rounded-xl p-2" style={{ background: C.primarySoft }}>
+              <Users size={17} color={C.primary} />
+            </div>
+            <div className="flex-1">
+              <p style={{ fontSize: 14.5, fontWeight: 700 }}>{s.name}</p>
+              <p style={{ fontSize: 11.5, color: C.inkMuted }}>{s.department}</p>
+
+            </div>
+            <ChevronRight size={16} color={C.inkMuted} style={{ transform: 'rotate(180deg)' }} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ManagerGate({ hasPin, managerPin, onCreate, onSuccess, onCancel }) {
+  const [stage, setStage] = useState(hasPin ? 'enter' : 'create'); // create | confirm | enter
+  const [digits, setDigits] = useState('');
+  const [firstPin, setFirstPin] = useState('');
+  const [error, setError] = useState('');
+
+  const press = (d) => {
+    if (digits.length >= 4) return;
+    const next = digits + d;
+    setError('');
+    setDigits(next);
+    if (next.length === 4) {
+      setTimeout(async () => {
+        if (stage === 'create') {
+          setFirstPin(next);
+          setDigits('');
+          setStage('confirm');
+        } else if (stage === 'confirm') {
+          if (next === firstPin) {
+            const hash = await sha256Hex(next);
+            onCreate(hash);
+          } else {
+            setError('الرمزان غير متطابقين، حاول من جديد');
+            setDigits('');
+            setFirstPin('');
+            setStage('create');
+          }
+        } else {
+          const hash = await sha256Hex(next);
+          if (hash === managerPin) {
+            onSuccess();
+          } else {
+            setError('رمز غير صحيح');
+            setDigits('');
+          }
+        }
+      }, 120);
+    }
+  };
+  const backspace = () => setDigits(d => d.slice(0, -1));
+
+  const titles = {
+    create: 'أنشئ رمز دخول للمدير (٤ أرقام)',
+    confirm: 'أعد إدخال الرمز للتأكيد',
+    enter: 'أدخل رمز المدير',
+  };
+
+  return (
+    <div className="fixed inset-0 z-30 flex flex-col items-center justify-center gap-5 px-6" style={{ background: 'rgba(10,29,27,0.55)', backdropFilter: 'blur(2px)' }}>
+      <div className="w-full max-w-xs rounded-3xl p-6 flex flex-col items-center gap-5" style={{ background: C.surface }}>
+        <div className="rounded-2xl p-3" style={{ background: C.primarySoft }}>
+          <ShieldCheck size={22} color={C.primary} />
+        </div>
+        <div className="text-center">
+          <p style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 15 }}>{titles[stage]}</p>
+          {!hasPin && stage === 'create' && (
+            <p style={{ fontSize: 11.5, color: C.inkMuted, marginTop: 4 }}>هذا الرمز يحمي لوحة المدير والمؤشرات من الوصول غير المصرّح</p>
+          )}
+        </div>
+
+        <div className="flex gap-3">
+          {[0, 1, 2, 3].map(i => (
+            <div
+              key={i}
+              className="rounded-full"
+              style={{ width: 14, height: 14, background: i < digits.length ? (error ? C.red : C.primary) : C.border, transition: 'background 0.15s' }}
+            />
+          ))}
+        </div>
+        {error && <p style={{ fontSize: 12, color: C.red, fontWeight: 600, marginTop: -8 }}>{error}</p>}
+
+        <div className="grid grid-cols-3 gap-3" style={{ width: 210 }}>
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(d => (
+            <button
+              key={d}
+              onClick={() => press(d)}
+              className="rounded-2xl py-3 text-lg font-bold"
+              style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+            >
+              {d}
+            </button>
+          ))}
+          <div />
+          <button onClick={() => press('0')} className="rounded-2xl py-3 text-lg font-bold" style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}>0</button>
+          <button onClick={backspace} className="rounded-2xl py-3 flex items-center justify-center" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+            <X size={16} color={C.inkMuted} />
+          </button>
+        </div>
+
+        <button onClick={onCancel} className="text-xs font-semibold" style={{ color: C.inkMuted }}>إلغاء</button>
+      </div>
+    </div>
+  );
+}
+
+function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview }) {
+  const [date] = useState(todayStr());
+  const [patientName, setPatientName] = useState('');
+  const [room, setRoom] = useState('');
+  const [ratings, setRatings] = useState({});
+  const [comment, setComment] = useState('');
+  const [flash, setFlash] = useState(false);
+
+  const todaysCount = responses.filter(r => r.supervisorId === supervisor.id && r.date === date).length;
+  const complete = CRITERIA.every(c => ratings[c.id]) && room.trim().length > 0 && patientName.trim().length > 0;
+
+  const submit = () => {
+    if (!complete) return;
+    onSubmit({ id: uid(), supervisorId: supervisor.id, date, room: room.trim(), patientName: patientName.trim(), ratings, comment });
+
+    // Reset for the next room; auto-advance a numeric room number, but the
+    // patient name always starts blank since it's specific to each patient.
+    setRatings({});
+    setComment('');
+    setPatientName('');
+    setRoom(prev => {
+      const n = parseInt(prev, 10);
+      return Number.isFinite(n) ? String(n + 1) : '';
+    });
+    setFlash(true);
+    setTimeout(() => setFlash(false), 1200);
+  };
+
+  return (
+    <div className="flex flex-col gap-4 pb-4">
+      {/* Session bar */}
+      <div className="rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: C.primaryDeep }}>
+        <div className="rounded-xl p-2" style={{ background: 'rgba(255,255,255,0.14)' }}>
+          <Users size={17} color="#fff" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p style={{ fontSize: 13.5, fontWeight: 700, color: '#fff' }} className="truncate">{supervisor.name}</p>
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }} className="truncate">{supervisor.department}</p>
+        </div>
+        <div className="text-center px-2">
+          <p style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 17, color: '#fff' }}>{todaysCount}</p>
+          <p style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.6)' }}>اليوم</p>
+        </div>
+        <button onClick={onSwitch} className="text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.14)', color: '#fff' }}>
+          تبديل
+        </button>
+      </div>
+
+      {flash && (
+        <div className="rounded-xl px-3 py-2 flex items-center gap-2" style={{ background: C.primarySoft }}>
+          <CheckCircle2 size={15} color={C.primary} />
+          <span style={{ fontSize: 12.5, color: C.primary, fontWeight: 600 }}>تم الحفظ — جاهز للغرفة التالية</span>
+        </div>
+      )}
+
+      <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+        <div>
+          <label style={{ fontSize: 12, color: C.inkMuted, fontWeight: 600 }}>اسم المريض <span style={{ color: C.red }}>*</span></label>
+          <input
+            type="text" value={patientName} onChange={e => setPatientName(e.target.value)} placeholder="اسم المريض"
+            className="w-full mt-1.5 rounded-xl px-3 py-2.5 text-sm"
+            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+          />
+        </div>
+        <div>
+          <label style={{ fontSize: 12, color: C.inkMuted, fontWeight: 600 }}>رقم الغرفة <span style={{ color: C.red }}>*</span></label>
+          <input
+            type="text" value={room} onChange={e => setRoom(e.target.value)} placeholder="مثال: 214"
+            className="w-full mt-1.5 rounded-xl px-3 py-2.5 text-sm"
+            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+          />
+        </div>
+      </div>
+
+      {CRITERIA.map((c, i) => (
+        <div key={c.id} className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <div className="flex items-center gap-2 mb-3">
+            <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 12, color: C.primary, background: C.primarySoft, borderRadius: 999, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+            <p style={{ fontSize: 13.5, fontWeight: 700 }}>{c.label}</p>
+          </div>
+          <RatingPicker value={ratings[c.id]} onChange={(v) => setRatings({ ...ratings, [c.id]: v })} />
+        </div>
+      ))}
+
+      <div className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+        <label style={{ fontSize: 12, color: C.inkMuted, fontWeight: 600 }}>ملاحظة تودّ ذكرها (اختياري)</label>
+        <textarea
+          value={comment} onChange={e => setComment(e.target.value)} rows={2}
+          className="w-full mt-1.5 rounded-xl px-3 py-2.5 text-sm resize-none"
+          style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+        />
+      </div>
+
+      <button
+        onClick={submit}
+        disabled={!complete}
+        className="rounded-2xl py-3.5 text-sm font-bold flex items-center justify-center gap-2 sticky bottom-3"
+        style={{ background: complete ? C.primary : C.border, color: complete ? '#fff' : C.inkMuted, boxShadow: complete ? '0 8px 20px rgba(14,92,85,0.3)' : 'none' }}
+      >
+        <Plus size={16} /> حفظ والانتقال للغرفة التالية
+      </button>
+
+      <button onClick={goOverview} className="text-xs font-semibold text-center" style={{ color: C.inkMuted }}>
+        عرض لوحة المدير والمؤشرات ←
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Manage supervisors
+// ---------------------------------------------------------------------------
+function ManageTab({ supervisors, responses, onAdd, onRemove }) {
+  const [name, setName] = useState('');
+  const [department, setDepartment] = useState('');
+  const [copiedId, setCopiedId] = useState(null);
+
+  const add = () => {
+    if (!name.trim() || !department.trim()) return;
+    onAdd({ id: uid(), name: name.trim(), department: department.trim() });
+    setName('');
+    setDepartment('');
+  };
+
+  const copyLink = async (s) => {
+    const url = `${window.location.origin}${window.location.pathname}?s=${s.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(s.id);
+      setTimeout(() => setCopiedId(null), 1800);
+    } catch {
+      window.prompt('انسخ هذا الرابط:', url);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+        <p style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 10 }}>إضافة مشرف جديد</p>
+        <div className="flex flex-col gap-2">
+          <input
+            value={name} onChange={e => setName(e.target.value)} placeholder="اسم المشرف"
+            className="rounded-xl px-3 py-2.5 text-sm" style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+          />
+          <input
+            value={department} onChange={e => setDepartment(e.target.value)} placeholder="القسم المسؤول عنه"
+            className="rounded-xl px-3 py-2.5 text-sm" style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+          />
+          <button
+            onClick={add}
+            className="rounded-xl py-2.5 text-sm font-bold flex items-center justify-center gap-1.5 mt-1"
+            style={{ background: C.primary, color: '#fff' }}
+          >
+            <Plus size={15} /> إضافة
+          </button>
+        </div>
+      </div>
+
+      <section>
+        <p style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>المشرفون الحاليون ({supervisors.length})</p>
+        <div className="flex flex-col gap-2">
+          {supervisors.length === 0 && <p style={{ fontSize: 12.5, color: C.inkMuted }}>لا يوجد مشرفون بعد.</p>}
+          {supervisors.map(s => {
+            const count = responses.filter(r => r.supervisorId === s.id).length;
+            return (
+              <div key={s.id} className="rounded-xl px-3 py-2.5 flex flex-col gap-2" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontSize: 13, fontWeight: 700 }} className="truncate">{s.name}</p>
+                    <p style={{ fontSize: 11, color: C.inkMuted }} className="truncate">{s.department} · {count} استبيان</p>
+                  </div>
+                  <button onClick={() => onRemove(s.id)} className="rounded-lg p-1.5" style={{ background: C.redSoft }}>
+                    <Trash2 size={14} color={C.red} />
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => copyLink(s)}
+                  className="flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-lg"
+                  style={{ background: copiedId === s.id ? C.primarySoft : C.bg, color: copiedId === s.id ? C.primary : C.ink }}
+                >
+                  {copiedId === s.id ? (
+                    <><CheckCircle2 size={13} /> تم نسخ الرابط</>
+                  ) : (
+                    <><LinkIcon size={13} /> نسخ رابط شخصي</>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
 }
