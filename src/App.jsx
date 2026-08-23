@@ -436,9 +436,6 @@ export default function App() {
               await persistSupervisors(supervisors.filter(s => s.id !== id));
               await persistResponses(responses.filter(r => r.supervisorId !== id));
             }}
-            onUpdatePin={async (id, pin) => {
-              await persistSupervisors(supervisors.map(s => s.id === id ? { ...s, pin } : s));
-            }}
           />
         )}
       </main>
@@ -777,59 +774,38 @@ function RoundTab({ supervisors, responses, presetSupId, onSubmit, goManage, goO
     return <EmptyState message="أضف مشرفًا وقسمًا أولًا من الإعدادات قبل بدء الجولة." icon={Users} action={{ label: 'إضافة مشرف', onClick: goManage }} />;
   }
 
+  // Personal link (?s=<id>) opens straight into that supervisor's round —
+  // no name list, no PIN. "تبديل" falls back to the full list below.
   const presetSup = !ignorePreset && presetSupId ? supervisors.find(s => s.id === presetSupId) : null;
+  const activeSupervisor = presetSup || supervisors.find(s => s.id === supervisorId);
 
-  if (!supervisorId) {
-    if (presetSup) {
-      // Personal link (?s=<id>) — skip the name list and go straight to
-      // this supervisor's own PIN screen.
-      return (
-        <PinGate
-          supervisor={presetSup}
-          showBack={false}
-          onCancel={() => setIgnorePreset(true)}
-          onSuccess={() => setSupervisorId(presetSup.id)}
-        />
-      );
-    }
+  if (!activeSupervisor) {
     return <WhoAreYou supervisors={supervisors} onPick={setSupervisorId} />;
   }
 
   return (
     <RoundSession
-      supervisor={supervisors.find(s => s.id === supervisorId)}
+      supervisor={activeSupervisor}
       responses={responses}
       onSubmit={onSubmit}
-      onSwitch={() => setSupervisorId(null)}
+      onSwitch={() => { setSupervisorId(null); setIgnorePreset(true); }}
       goOverview={goOverview}
     />
   );
 }
 
 function WhoAreYou({ supervisors, onPick }) {
-  const [pending, setPending] = useState(null); // supervisor object mid-pin-entry
-
-  if (pending) {
-    return (
-      <PinGate
-        supervisor={pending}
-        onCancel={() => setPending(null)}
-        onSuccess={() => onPick(pending.id)}
-      />
-    );
-  }
-
   return (
     <div className="flex flex-col gap-4">
       <div className="text-center pt-4 pb-1">
         <p style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 18 }}>من أنت؟</p>
-        <p style={{ fontSize: 12.5, color: C.inkMuted, marginTop: 4 }}>اختر اسمك ثم أدخل رمزك الخاص لبدء الجولة</p>
+        <p style={{ fontSize: 12.5, color: C.inkMuted, marginTop: 4 }}>اختر اسمك لبدء الجولة</p>
       </div>
       <div className="flex flex-col gap-2">
         {supervisors.map(s => (
           <button
             key={s.id}
-            onClick={() => setPending(s)}
+            onClick={() => onPick(s.id)}
             className="rounded-2xl px-4 py-3.5 flex items-center gap-3 text-right"
             style={{ background: C.surface, border: `1px solid ${C.border}` }}
           >
@@ -938,105 +914,6 @@ function ManagerGate({ hasPin, managerPin, onCreate, onSuccess, onCancel }) {
 
         <button onClick={onCancel} className="text-xs font-semibold" style={{ color: C.inkMuted }}>إلغاء</button>
       </div>
-    </div>
-  );
-}
-
-function PinGate({ supervisor, onCancel, onSuccess, showBack = true }) {
-  const [digits, setDigits] = useState('');
-  const [error, setError] = useState(false);
-  const hasPin = !!supervisor.pin;
-
-  const press = (d) => {
-    if (digits.length >= 4) return;
-    const next = digits + d;
-    setError(false);
-    setDigits(next);
-    if (next.length === 4) {
-      setTimeout(() => {
-        if (!hasPin || next === supervisor.pin) {
-          onSuccess();
-        } else {
-          setError(true);
-          setDigits('');
-        }
-      }, 120);
-    }
-  };
-  const backspace = () => setDigits(d => d.slice(0, -1));
-
-  return (
-    <div className="flex flex-col items-center gap-5 pt-4">
-      {showBack && (
-        <button onClick={onCancel} className="self-start flex items-center gap-1 text-sm" style={{ color: C.primary }}>
-          <ArrowRight size={15} style={{ transform: 'rotate(180deg)' }} /> رجوع
-        </button>
-      )}
-
-      <div className="text-center">
-        <div className="rounded-2xl p-2.5 mx-auto mb-2 inline-block" style={{ background: C.primarySoft }}>
-          <Users size={20} color={C.primary} />
-        </div>
-        <p style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 16 }}>{supervisor.name}</p>
-        <p style={{ fontSize: 12, color: C.inkMuted }}>{supervisor.department}</p>
-      </div>
-
-      {!hasPin ? (
-        <p style={{ fontSize: 12, color: C.inkMuted, textAlign: 'center', maxWidth: 220 }}>
-          لا يوجد رمز مخصص لهذا الاسم بعد. اضغط استمرار للدخول، وأضف رمزًا لاحقًا من الإعدادات.
-        </p>
-      ) : (
-        <p style={{ fontSize: 12, color: C.inkMuted }}>أدخل الرمز المكوّن من ٤ أرقام</p>
-      )}
-
-      <div className="flex gap-3">
-        {[0, 1, 2, 3].map(i => (
-          <div
-            key={i}
-            className="rounded-full"
-            style={{
-              width: 14, height: 14,
-              background: i < digits.length ? (error ? C.red : C.primary) : C.border,
-              transition: 'background 0.15s',
-            }}
-          />
-        ))}
-      </div>
-      {error && <p style={{ fontSize: 12, color: C.red, fontWeight: 600 }}>رمز غير صحيح، حاول مرة أخرى</p>}
-
-      {hasPin ? (
-        <div className="grid grid-cols-3 gap-3" style={{ width: 220 }}>
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(d => (
-            <button
-              key={d}
-              onClick={() => press(d)}
-              className="rounded-2xl py-3.5 text-lg font-bold"
-              style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.ink }}
-            >
-              {d}
-            </button>
-          ))}
-          <div />
-          <button
-            onClick={() => press('0')}
-            className="rounded-2xl py-3.5 text-lg font-bold"
-            style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.ink }}
-          >
-            0
-          </button>
-          <button onClick={backspace} className="rounded-2xl py-3.5 flex items-center justify-center" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-            <X size={16} color={C.inkMuted} />
-          </button>
-        </div>
-      ) : (
-        <button
-          onClick={onSuccess}
-          className="rounded-2xl px-6 py-3 text-sm font-bold"
-          style={{ background: C.primary, color: '#fff' }}
-        >
-          استمرار
-        </button>
-      )}
     </div>
   );
 }
@@ -1153,22 +1030,16 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
 // ---------------------------------------------------------------------------
 // Manage supervisors
 // ---------------------------------------------------------------------------
-function ManageTab({ supervisors, responses, onAdd, onRemove, onUpdatePin }) {
+function ManageTab({ supervisors, responses, onAdd, onRemove }) {
   const [name, setName] = useState('');
   const [department, setDepartment] = useState('');
-  const [pin, setPin] = useState('');
-  const [pinError, setPinError] = useState(false);
-  const [editingId, setEditingId] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
 
   const add = () => {
     if (!name.trim() || !department.trim()) return;
-    if (pin && !/^\d{4}$/.test(pin)) { setPinError(true); return; }
-    onAdd({ id: uid(), name: name.trim(), department: department.trim(), pin: pin || '' });
+    onAdd({ id: uid(), name: name.trim(), department: department.trim() });
     setName('');
     setDepartment('');
-    setPin('');
-    setPinError(false);
   };
 
   const copyLink = async (s) => {
@@ -1195,18 +1066,6 @@ function ManageTab({ supervisors, responses, onAdd, onRemove, onUpdatePin }) {
             value={department} onChange={e => setDepartment(e.target.value)} placeholder="القسم المسؤول عنه"
             className="rounded-xl px-3 py-2.5 text-sm" style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
           />
-          <div>
-            <input
-              value={pin}
-              onChange={e => { setPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setPinError(false); }}
-              placeholder="رمز دخول من ٤ أرقام (يمنع دخول شخص آخر باسمه)"
-              inputMode="numeric"
-              type="password"
-              className="w-full rounded-xl px-3 py-2.5 text-sm"
-              style={{ background: C.bg, border: `1px solid ${pinError ? C.red : C.border}`, color: C.ink }}
-            />
-            {pinError && <p style={{ fontSize: 11, color: C.red, marginTop: 4 }}>الرمز يجب أن يكون ٤ أرقام</p>}
-          </div>
           <button
             onClick={add}
             className="rounded-xl py-2.5 text-sm font-bold flex items-center justify-center gap-1.5 mt-1"
@@ -1230,74 +1089,27 @@ function ManageTab({ supervisors, responses, onAdd, onRemove, onUpdatePin }) {
                     <p style={{ fontSize: 13, fontWeight: 700 }} className="truncate">{s.name}</p>
                     <p style={{ fontSize: 11, color: C.inkMuted }} className="truncate">{s.department} · {count} استبيان</p>
                   </div>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: s.pin ? C.primary : C.amber, background: s.pin ? C.primarySoft : C.amberSoft, padding: '3px 8px', borderRadius: 999 }}>
-                    {s.pin ? 'محمي برمز' : 'بلا رمز'}
-                  </span>
                   <button onClick={() => onRemove(s.id)} className="rounded-lg p-1.5" style={{ background: C.redSoft }}>
                     <Trash2 size={14} color={C.red} />
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => copyLink(s)}
-                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-lg"
-                    style={{ background: copiedId === s.id ? C.primarySoft : C.bg, color: copiedId === s.id ? C.primary : C.ink }}
-                  >
-                    {copiedId === s.id ? (
-                      <><CheckCircle2 size={13} /> تم نسخ الرابط</>
-                    ) : (
-                      <><LinkIcon size={13} /> نسخ رابط شخصي</>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setEditingId(editingId === s.id ? null : s.id)}
-                    className="flex-1 text-xs font-semibold px-2 py-1.5 rounded-lg"
-                    style={{ background: C.bg, color: C.primary }}
-                  >
-                    {s.pin ? 'تغيير الرمز' : 'تعيين رمز'}
-                  </button>
-                </div>
-
-                {editingId === s.id && (
-                  <PinEditor
-                    initial={s.pin || ''}
-                    onSave={(newPin) => { onUpdatePin(s.id, newPin); setEditingId(null); }}
-                    onCancel={() => setEditingId(null)}
-                  />
-                )}
+                <button
+                  onClick={() => copyLink(s)}
+                  className="flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-lg"
+                  style={{ background: copiedId === s.id ? C.primarySoft : C.bg, color: copiedId === s.id ? C.primary : C.ink }}
+                >
+                  {copiedId === s.id ? (
+                    <><CheckCircle2 size={13} /> تم نسخ الرابط</>
+                  ) : (
+                    <><LinkIcon size={13} /> نسخ رابط شخصي</>
+                  )}
+                </button>
               </div>
             );
           })}
         </div>
       </section>
-    </div>
-  );
-}
-
-function PinEditor({ initial, onSave, onCancel }) {
-  const [value, setValue] = useState(initial);
-  const [error, setError] = useState(false);
-
-  const save = () => {
-    if (!/^\d{4}$/.test(value)) { setError(true); return; }
-    onSave(value);
-  };
-
-  return (
-    <div className="mt-2.5 pt-2.5 flex items-center gap-2" style={{ borderTop: `1px solid ${C.border}` }}>
-      <input
-        value={value}
-        onChange={e => { setValue(e.target.value.replace(/\D/g, '').slice(0, 4)); setError(false); }}
-        placeholder="٤ أرقام"
-        inputMode="numeric"
-        type="password"
-        autoFocus
-        className="flex-1 rounded-lg px-3 py-2 text-sm"
-        style={{ background: C.bg, border: `1px solid ${error ? C.red : C.border}`, color: C.ink }}
-      />
-      <button onClick={save} className="text-xs font-bold px-3 py-2 rounded-lg" style={{ background: C.primary, color: '#fff' }}>حفظ</button>
-      <button onClick={onCancel} className="text-xs font-semibold px-3 py-2 rounded-lg" style={{ background: C.bg, color: C.inkMuted }}>إلغاء</button>
     </div>
   );
 }
