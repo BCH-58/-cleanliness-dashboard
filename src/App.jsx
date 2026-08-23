@@ -6,7 +6,7 @@ import {
 import {
   Sparkles, Droplets, Users, ClipboardList, TrendingUp, TrendingDown, AlertTriangle,
   CheckCircle2, Settings, Plus, Trash2, X, ChevronRight, Building2, CalendarDays,
-  ArrowRight, Activity, LayoutGrid, Lock, LockOpen, ShieldCheck
+  ArrowRight, Activity, LayoutGrid, Lock, LockOpen, ShieldCheck, Link as LinkIcon
 } from 'lucide-react';
 import { subscribe, writeData } from './lib/storage';
 
@@ -167,6 +167,16 @@ export default function App() {
   const [responses, setResponses] = useState([]);
   const [tab, setTab] = useState('round'); // round | overview | supervisors | manage
   const [selectedSupId, setSelectedSupId] = useState(null);
+
+  // A supervisor's personal link looks like ?s=<their id> — read once on
+  // load so their round view skips straight to their own PIN screen.
+  const [presetSupId] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('s');
+    } catch {
+      return null;
+    }
+  });
 
   // Manager-only access: overview / supervisors / manage stay hidden and
   // locked behind a manager PIN. Unlock lasts for this session only.
@@ -408,6 +418,7 @@ export default function App() {
           <RoundTab
             supervisors={supervisors}
             responses={responses}
+            presetSupId={presetSupId}
             onSubmit={async (entry) => {
               await persistResponses([...responses, entry]);
             }}
@@ -758,14 +769,28 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
 // Pick yourself once, then log each patient in a few taps without leaving
 // the screen; the room number auto-advances and today's count stays visible.
 // ---------------------------------------------------------------------------
-function RoundTab({ supervisors, responses, onSubmit, goManage, goOverview }) {
+function RoundTab({ supervisors, responses, presetSupId, onSubmit, goManage, goOverview }) {
   const [supervisorId, setSupervisorId] = useState(null);
+  const [ignorePreset, setIgnorePreset] = useState(false);
 
   if (supervisors.length === 0) {
     return <EmptyState message="أضف مشرفًا وقسمًا أولًا من الإعدادات قبل بدء الجولة." icon={Users} action={{ label: 'إضافة مشرف', onClick: goManage }} />;
   }
 
+  const presetSup = !ignorePreset && presetSupId ? supervisors.find(s => s.id === presetSupId) : null;
+
   if (!supervisorId) {
+    if (presetSup) {
+      // Personal link (?s=<id>) — skip the name list and go straight to
+      // this supervisor's own PIN screen.
+      return (
+        <PinGate
+          supervisor={presetSup}
+          onCancel={() => setIgnorePreset(true)}
+          onSuccess={() => setSupervisorId(presetSup.id)}
+        />
+      );
+    }
     return <WhoAreYou supervisors={supervisors} onPick={setSupervisorId} />;
   }
 
@@ -1131,6 +1156,7 @@ function ManageTab({ supervisors, responses, onAdd, onRemove, onUpdatePin }) {
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
 
   const add = () => {
     if (!name.trim() || !department.trim()) return;
@@ -1140,6 +1166,17 @@ function ManageTab({ supervisors, responses, onAdd, onRemove, onUpdatePin }) {
     setDepartment('');
     setPin('');
     setPinError(false);
+  };
+
+  const copyLink = async (s) => {
+    const url = `${window.location.origin}${window.location.pathname}?s=${s.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(s.id);
+      setTimeout(() => setCopiedId(null), 1800);
+    } catch {
+      window.prompt('انسخ هذا الرابط:', url);
+    }
   };
 
   return (
@@ -1184,7 +1221,7 @@ function ManageTab({ supervisors, responses, onAdd, onRemove, onUpdatePin }) {
           {supervisors.map(s => {
             const count = responses.filter(r => r.supervisorId === s.id).length;
             return (
-              <div key={s.id} className="rounded-xl px-3 py-2.5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+              <div key={s.id} className="rounded-xl px-3 py-2.5 flex flex-col gap-2" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
                 <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <p style={{ fontSize: 13, fontWeight: 700 }} className="truncate">{s.name}</p>
@@ -1193,17 +1230,32 @@ function ManageTab({ supervisors, responses, onAdd, onRemove, onUpdatePin }) {
                   <span style={{ fontSize: 10.5, fontWeight: 700, color: s.pin ? C.primary : C.amber, background: s.pin ? C.primarySoft : C.amberSoft, padding: '3px 8px', borderRadius: 999 }}>
                     {s.pin ? 'محمي برمز' : 'بلا رمز'}
                   </span>
-                  <button
-                    onClick={() => setEditingId(editingId === s.id ? null : s.id)}
-                    className="text-xs font-semibold px-2 py-1 rounded-lg"
-                    style={{ background: C.bg, color: C.primary }}
-                  >
-                    {s.pin ? 'تغيير' : 'تعيين'}
-                  </button>
                   <button onClick={() => onRemove(s.id)} className="rounded-lg p-1.5" style={{ background: C.redSoft }}>
                     <Trash2 size={14} color={C.red} />
                   </button>
                 </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => copyLink(s)}
+                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-lg"
+                    style={{ background: copiedId === s.id ? C.primarySoft : C.bg, color: copiedId === s.id ? C.primary : C.ink }}
+                  >
+                    {copiedId === s.id ? (
+                      <><CheckCircle2 size={13} /> تم نسخ الرابط</>
+                    ) : (
+                      <><LinkIcon size={13} /> نسخ رابط شخصي</>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setEditingId(editingId === s.id ? null : s.id)}
+                    className="flex-1 text-xs font-semibold px-2 py-1.5 rounded-lg"
+                    style={{ background: C.bg, color: C.primary }}
+                  >
+                    {s.pin ? 'تغيير الرمز' : 'تعيين رمز'}
+                  </button>
+                </div>
+
                 {editingId === s.id && (
                   <PinEditor
                     initial={s.pin || ''}
