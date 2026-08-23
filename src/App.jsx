@@ -600,6 +600,7 @@ function SupervisorsTab({ supervisorStats, onSelect, goManage }) {
 function SupervisorDetail({ supId, supervisors, responses, onBack }) {
   const sup = supervisors.find(s => s.id === supId);
   const rs = responses.filter(r => r.supervisorId === supId).sort((a, b) => b.date.localeCompare(a.date));
+  const [expandedId, setExpandedId] = useState(null);
 
   const criteriaAverages = CRITERIA.map(c => {
     const vals = rs.map(r => r.ratings[c.id]);
@@ -652,19 +653,50 @@ function SupervisorDetail({ supId, supervisors, responses, onBack }) {
       )}
 
       <section>
-        <h2 style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>آخر الاستبيانات</h2>
+        <h2 style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>سجل الاستبيانات — اضغط أي غرفة لعرض التفاصيل</h2>
         <div className="flex flex-col gap-2">
-          {rs.slice(0, 10).map(r => {
+          {rs.map(r => {
             const vals = CRITERIA.map(c => r.ratings[c.id]);
             const pct = ((vals.reduce((a, b) => a + b, 0) / vals.length - 1) / 3) * 100;
+            const isOpen = expandedId === r.id;
             return (
-              <div key={r.id} className="rounded-xl px-3 py-2.5 flex items-center gap-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                <CalendarDays size={14} color={C.inkMuted} />
-                <div className="flex-1">
-                  <p style={{ fontSize: 12.5 }}>{r.date} {r.room && `· غرفة ${r.room}`} {r.patientName && `· ${r.patientName}`}</p>
-                  {r.comment && <p style={{ fontSize: 11, color: C.inkMuted }} className="truncate">{r.comment}</p>}
-                </div>
-                <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 13, color: scoreColor(pct) }}>{Math.round(pct)}%</span>
+              <div key={r.id} className="rounded-xl overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                <button
+                  onClick={() => setExpandedId(isOpen ? null : r.id)}
+                  className="w-full px-3 py-2.5 flex items-center gap-3 text-right"
+                >
+                  <CalendarDays size={14} color={C.inkMuted} />
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontSize: 12.5 }} className="truncate">
+                      {r.date} {r.room && `· غرفة ${r.room}`} {r.patientName && `· ${r.patientName}`}
+                    </p>
+                    {r.comment && <p style={{ fontSize: 11, color: C.inkMuted }} className="truncate">{r.comment}</p>}
+                  </div>
+                  <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 13, color: scoreColor(pct) }}>{Math.round(pct)}%</span>
+                  <ChevronRight size={15} color={C.inkMuted} style={{ transform: isOpen ? 'rotate(-90deg)' : 'rotate(180deg)', transition: 'transform 0.15s' }} />
+                </button>
+
+                {isOpen && (
+                  <div className="px-3 pb-3 flex flex-col gap-1.5" style={{ borderTop: `1px solid ${C.border}` }}>
+                    {CRITERIA.map(c => {
+                      const v = r.ratings[c.id];
+                      const scaleItem = SCALE.find(s => s.value === v);
+                      return (
+                        <div key={c.id} className="flex items-center justify-between pt-1.5">
+                          <span style={{ fontSize: 12, color: C.ink }}>{c.label}</span>
+                          <span
+                            style={{
+                              fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 999,
+                              color: '#fff', background: scaleItem ? scaleItem.color : C.inkMuted,
+                            }}
+                          >
+                            {scaleItem ? scaleItem.label : '—'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
