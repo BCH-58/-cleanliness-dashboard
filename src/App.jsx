@@ -9,6 +9,7 @@ import {
   ArrowRight, Activity, LayoutGrid, Lock, LockOpen, ShieldCheck, Link as LinkIcon
 } from 'lucide-react';
 import { subscribe, writeData } from './lib/storage';
+import { sha256Hex, isValidHash } from './lib/hash';
 
 // ---------------------------------------------------------------------------
 // Tokens
@@ -362,10 +363,10 @@ export default function App() {
 
       {gateOpen && (
         <ManagerGate
-          hasPin={!!managerPin}
+          hasPin={isValidHash(managerPin)}
           managerPin={managerPin}
-          onCreate={async (pin) => {
-            await persistManagerPin(pin);
+          onCreate={async (pinHash) => {
+            await persistManagerPin(pinHash);
             setManagerUnlocked(true);
             setGateOpen(false);
             setTab(pendingTab || 'overview');
@@ -837,14 +838,15 @@ function ManagerGate({ hasPin, managerPin, onCreate, onSuccess, onCancel }) {
     setError('');
     setDigits(next);
     if (next.length === 4) {
-      setTimeout(() => {
+      setTimeout(async () => {
         if (stage === 'create') {
           setFirstPin(next);
           setDigits('');
           setStage('confirm');
         } else if (stage === 'confirm') {
           if (next === firstPin) {
-            onCreate(next);
+            const hash = await sha256Hex(next);
+            onCreate(hash);
           } else {
             setError('الرمزان غير متطابقين، حاول من جديد');
             setDigits('');
@@ -852,7 +854,8 @@ function ManagerGate({ hasPin, managerPin, onCreate, onSuccess, onCancel }) {
             setStage('create');
           }
         } else {
-          if (next === managerPin) {
+          const hash = await sha256Hex(next);
+          if (hash === managerPin) {
             onSuccess();
           } else {
             setError('رمز غير صحيح');
