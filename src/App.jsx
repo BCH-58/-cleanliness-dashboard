@@ -786,6 +786,7 @@ function RoundTab({ supervisors, responses, presetSupId, onSubmit, goManage, goO
       return (
         <PinGate
           supervisor={presetSup}
+          showBack={false}
           onCancel={() => setIgnorePreset(true)}
           onSuccess={() => setSupervisorId(presetSup.id)}
         />
@@ -941,7 +942,7 @@ function ManagerGate({ hasPin, managerPin, onCreate, onSuccess, onCancel }) {
   );
 }
 
-function PinGate({ supervisor, onCancel, onSuccess }) {
+function PinGate({ supervisor, onCancel, onSuccess, showBack = true }) {
   const [digits, setDigits] = useState('');
   const [error, setError] = useState(false);
   const hasPin = !!supervisor.pin;
@@ -966,9 +967,11 @@ function PinGate({ supervisor, onCancel, onSuccess }) {
 
   return (
     <div className="flex flex-col items-center gap-5 pt-4">
-      <button onClick={onCancel} className="self-start flex items-center gap-1 text-sm" style={{ color: C.primary }}>
-        <ArrowRight size={15} style={{ transform: 'rotate(180deg)' }} /> رجوع
-      </button>
+      {showBack && (
+        <button onClick={onCancel} className="self-start flex items-center gap-1 text-sm" style={{ color: C.primary }}>
+          <ArrowRight size={15} style={{ transform: 'rotate(180deg)' }} /> رجوع
+        </button>
+      )}
 
       <div className="text-center">
         <div className="rounded-2xl p-2.5 mx-auto mb-2 inline-block" style={{ background: C.primarySoft }}>
