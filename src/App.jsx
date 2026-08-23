@@ -986,12 +986,21 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
   const [ratings, setRatings] = useState({});
   const [comment, setComment] = useState('');
   const [flash, setFlash] = useState(false);
+  const [confirmingDuplicate, setConfirmingDuplicate] = useState(false);
 
   const todaysCount = responses.filter(r => r.supervisorId === supervisor.id && r.date === date).length;
   const complete = CRITERIA.every(c => ratings[c.id]) && room.trim().length > 0 && patientName.trim().length > 0;
 
+  const isDuplicateRoom = room.trim().length > 0 && responses.some(
+    r => r.supervisorId === supervisor.id && r.date === date && r.room.trim() === room.trim()
+  );
+
   const submit = () => {
     if (!complete) return;
+    if (isDuplicateRoom && !confirmingDuplicate) {
+      setConfirmingDuplicate(true);
+      return;
+    }
     onSubmit({ id: uid(), supervisorId: supervisor.id, date, room: room.trim(), patientName: patientName.trim(), ratings, comment });
 
     // Reset for the next room; auto-advance a numeric room number, but the
@@ -999,6 +1008,7 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
     setRatings({});
     setComment('');
     setPatientName('');
+    setConfirmingDuplicate(false);
     setRoom(prev => {
       const n = parseInt(prev, 10);
       return Number.isFinite(n) ? String(n + 1) : '';
@@ -1046,10 +1056,18 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
         <div>
           <label style={{ fontSize: 12, color: C.inkMuted, fontWeight: 600 }}>رقم الغرفة <span style={{ color: C.red }}>*</span></label>
           <input
-            type="text" value={room} onChange={e => setRoom(e.target.value)} placeholder="مثال: 214"
+            type="text"
+            value={room}
+            onChange={e => { setRoom(e.target.value); setConfirmingDuplicate(false); }}
+            placeholder="مثال: 214"
             className="w-full mt-1.5 rounded-xl px-3 py-2.5 text-sm"
-            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+            style={{ background: C.bg, border: `1px solid ${isDuplicateRoom ? C.amber : C.border}`, color: C.ink }}
           />
+          {isDuplicateRoom && (
+            <p style={{ fontSize: 11.5, color: C.amber, marginTop: 5, fontWeight: 600 }}>
+              ⚠ هذي الغرفة مسجّلة مسبقًا اليوم — تأكد قبل الحفظ
+            </p>
+          )}
         </div>
       </div>
 
@@ -1076,9 +1094,17 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
         onClick={submit}
         disabled={!complete}
         className="rounded-2xl py-3.5 text-sm font-bold flex items-center justify-center gap-2 sticky bottom-3"
-        style={{ background: complete ? C.primary : C.border, color: complete ? '#fff' : C.inkMuted, boxShadow: complete ? '0 8px 20px rgba(14,92,85,0.3)' : 'none' }}
+        style={{
+          background: !complete ? C.border : (confirmingDuplicate ? C.amber : C.primary),
+          color: !complete ? C.inkMuted : '#fff',
+          boxShadow: complete ? '0 8px 20px rgba(14,92,85,0.3)' : 'none',
+        }}
       >
-        <Plus size={16} /> حفظ والانتقال للغرفة التالية
+        {confirmingDuplicate ? (
+          <><AlertTriangle size={16} /> الغرفة مكرّرة — اضغط للتأكيد والحفظ</>
+        ) : (
+          <><Plus size={16} /> حفظ والانتقال للغرفة التالية</>
+        )}
       </button>
 
       <button onClick={goOverview} className="text-xs font-semibold text-center" style={{ color: C.inkMuted }}>
