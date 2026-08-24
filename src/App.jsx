@@ -989,12 +989,14 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
 
   const todaysCount = responses.filter(r => r.supervisorId === supervisor.id && r.date === date).length;
 
-  const isDuplicateRoom = room.trim().length > 0 && responses.some(
-    r => r.supervisorId === supervisor.id && r.date === date && r.room.trim() === room.trim()
-  );
+  const ROOM_DAILY_LIMIT = 3;
+  const roomCountToday = room.trim().length > 0
+    ? responses.filter(r => r.supervisorId === supervisor.id && r.date === date && r.room.trim() === room.trim()).length
+    : 0;
+  const roomAtLimit = roomCountToday >= ROOM_DAILY_LIMIT;
 
   const complete = CRITERIA.every(c => ratings[c.id]) && room.trim().length > 0 && patientName.trim().length > 0;
-  const canSubmit = complete && !isDuplicateRoom;
+  const canSubmit = complete && !roomAtLimit;
 
   const submit = () => {
     if (!canSubmit) return;
@@ -1057,13 +1059,17 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
             onChange={e => setRoom(e.target.value)}
             placeholder="مثال: 214"
             className="w-full mt-1.5 rounded-xl px-3 py-2.5 text-sm"
-            style={{ background: C.bg, border: `1px solid ${isDuplicateRoom ? C.red : C.border}`, color: C.ink }}
+            style={{ background: C.bg, border: `1px solid ${roomAtLimit ? C.red : roomCountToday > 0 ? C.amber : C.border}`, color: C.ink }}
           />
-          {isDuplicateRoom && (
+          {roomAtLimit ? (
             <p style={{ fontSize: 11.5, color: C.red, marginTop: 5, fontWeight: 600 }}>
-              ⚠ هذي الغرفة مسجّلة مسبقًا اليوم — غيّر رقم الغرفة عشان تقدر تحفظ
+              ⚠ هذي الغرفة وصلت الحد الأقصى ({ROOM_DAILY_LIMIT} مرات) اليوم — غيّر رقم الغرفة عشان تقدر تحفظ
             </p>
-          )}
+          ) : roomCountToday > 0 ? (
+            <p style={{ fontSize: 11.5, color: C.amber, marginTop: 5, fontWeight: 600 }}>
+              هذي الغرفة مسجّلة {roomCountToday} {roomCountToday === 1 ? 'مرة' : 'مرات'} اليوم — متبقّي {ROOM_DAILY_LIMIT - roomCountToday}
+            </p>
+          ) : null}
         </div>
       </div>
 
