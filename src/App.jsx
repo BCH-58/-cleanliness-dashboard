@@ -291,13 +291,24 @@ export default function App() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen w-full" style={{ background: C.bg, fontFamily: 'IBM Plex Sans Arabic, sans-serif', color: C.ink }}>
+    <div dir="rtl" className="min-h-screen w-full relative" style={{ background: C.bg, fontFamily: 'IBM Plex Sans Arabic, sans-serif', color: C.ink }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { height: 6px; width: 6px; }
         ::-webkit-scrollbar-thumb { background: #C7D9D6; border-radius: 10px; }
       `}</style>
+
+      {/* Faint logo watermark behind all content */}
+      <img
+        src={logoStar}
+        alt=""
+        aria-hidden="true"
+        className="fixed pointer-events-none select-none"
+        style={{ top: '50%', right: '50%', transform: 'translate(50%, -50%)', width: 480, height: 480, opacity: 0.05, zIndex: 0 }}
+      />
+
+      <div className="relative" style={{ zIndex: 1 }}>
 
       {/* Header */}
       <header className="sticky top-0 z-20 px-4 pt-4 pb-3" style={{ background: C.primaryDeep }}>
@@ -440,6 +451,7 @@ export default function App() {
           />
         )}
       </main>
+      </div>
     </div>
   );
 }
