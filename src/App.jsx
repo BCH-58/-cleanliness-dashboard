@@ -847,7 +847,7 @@ function RoundTab({ supervisors, responses, presetSupId, onSubmit, goManage, goO
       supervisor={activeSupervisor}
       responses={responses}
       onSubmit={onSubmit}
-      onSwitch={() => { setSupervisorId(null); setIgnorePreset(true); }}
+      onSwitch={presetSup ? null : () => { setSupervisorId(null); setIgnorePreset(true); }}
       goOverview={goOverview}
     />
   );
@@ -1026,9 +1026,11 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
           <p style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 17, color: '#fff' }}>{todaysCount}</p>
           <p style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.6)' }}>اليوم</p>
         </div>
-        <button onClick={onSwitch} className="text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.14)', color: '#fff' }}>
-          تبديل
-        </button>
+        {onSwitch && (
+          <button onClick={onSwitch} className="text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.14)', color: '#fff' }}>
+            تبديل
+          </button>
+        )}
       </div>
 
       {flash && (
