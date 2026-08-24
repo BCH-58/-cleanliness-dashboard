@@ -305,8 +305,8 @@ export default function App() {
         className="fixed inset-0 pointer-events-none select-none"
         style={{
           backgroundImage: `url(${logoStar})`,
-          backgroundRepeat: 'repeat',
-          backgroundSize: '64px 64px',
+          backgroundSize: '46px 46px',
+          backgroundRepeat: 'space',
           opacity: 0.06,
           zIndex: 0,
         }}
