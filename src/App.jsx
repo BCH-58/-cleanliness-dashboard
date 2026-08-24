@@ -11,7 +11,7 @@ import {
 import { subscribe, writeData } from './lib/storage';
 import { sha256Hex, isValidHash } from './lib/hash';
 import { exportMonthlyReport } from './lib/export';
-import logoStar from './assets/logo-star.png';
+import logoStar from './logo-star.png';
 
 // ---------------------------------------------------------------------------
 // Tokens
