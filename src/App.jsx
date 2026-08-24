@@ -11,19 +11,20 @@ import {
 import { subscribe, writeData } from './lib/storage';
 import { sha256Hex, isValidHash } from './lib/hash';
 import { exportMonthlyReport } from './lib/export';
+import logoStar from './assets/logo-star.png';
 
 // ---------------------------------------------------------------------------
 // Tokens
 // ---------------------------------------------------------------------------
 const C = {
-  bg: '#F4F8F7',
+  bg: '#F3F8FB',
   surface: '#FFFFFF',
-  ink: '#16302D',
-  inkMuted: '#5E7975',
-  border: '#DCE8E5',
-  primary: '#0E5C55',
-  primarySoft: '#E1EEEB',
-  primaryDeep: '#0A423D',
+  ink: '#122A3D',
+  inkMuted: '#5D7893',
+  border: '#DCE9F2',
+  primary: '#1C92D0',
+  primarySoft: '#E4F1F9',
+  primaryDeep: '#155088',
   amber: '#DE9A34',
   amberSoft: '#FBEEDA',
   red: '#C64B4B',
@@ -92,7 +93,7 @@ function GaugePulse({ pct, count }) {
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 40, color: C.ink, lineHeight: 1 }}>
+          <span style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 40, color: C.ink, lineHeight: 1 }}>
             {Math.round(pct)}%
           </span>
           <span style={{ color, fontWeight: 700, fontSize: 13, marginTop: 4 }}>{scoreLabel(pct)}</span>
@@ -118,7 +119,7 @@ function StatPill({ icon: Icon, label, value, sub }) {
       </div>
       <div>
         <p style={{ fontSize: 12, color: C.inkMuted }}>{label}</p>
-        <p style={{ fontSize: 18, fontWeight: 800, color: C.ink, fontFamily: 'Tajawal' }}>{value}</p>
+        <p style={{ fontSize: 18, fontWeight: 800, color: C.ink, fontFamily: 'Cairo' }}>{value}</p>
         {sub && <p style={{ fontSize: 11, color: C.inkMuted }}>{sub}</p>}
       </div>
     </div>
@@ -284,7 +285,7 @@ export default function App() {
   if (!loaded) {
     return (
       <div className="flex items-center justify-center h-screen" style={{ background: C.bg }}>
-        <p style={{ color: C.inkMuted, fontFamily: 'Tajawal' }}>...جارِ التحميل</p>
+        <p style={{ color: C.inkMuted, fontFamily: 'Cairo' }}>...جارِ التحميل</p>
       </div>
     );
   }
@@ -292,7 +293,7 @@ export default function App() {
   return (
     <div dir="rtl" className="min-h-screen w-full" style={{ background: C.bg, fontFamily: 'IBM Plex Sans Arabic, sans-serif', color: C.ink }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { height: 6px; width: 6px; }
         ::-webkit-scrollbar-thumb { background: #C7D9D6; border-radius: 10px; }
@@ -301,13 +302,13 @@ export default function App() {
       {/* Header */}
       <header className="sticky top-0 z-20 px-4 pt-4 pb-3" style={{ background: C.primaryDeep }}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="rounded-xl p-2" style={{ background: 'rgba(255,255,255,0.12)' }}>
-              <Droplets size={20} color="#fff" />
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-xl p-1.5 flex items-center justify-center" style={{ background: '#fff', width: 38, height: 38 }}>
+              <img src={logoStar} alt="تجمع القصيم الصحي" style={{ width: 26, height: 26, objectFit: 'contain' }} />
             </div>
             <div>
-              <h1 style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 17, color: '#fff' }}>لوحة متابعة النظافة</h1>
-              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>مبنية على استبيان رضا المرضى عن النظافة</p>
+              <h1 style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 17, color: '#fff' }}>لوحة متابعة النظافة</h1>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>تجمع القصيم الصحي — استبيان رضا المرضى عن النظافة</p>
             </div>
           </div>
 
@@ -484,7 +485,7 @@ function OverviewTab({ overallPct, positivePct, responses, supervisors, criteria
       )}
 
       <section>
-        <h2 style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>المؤشر حسب بند الاستبيان</h2>
+        <h2 style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>المؤشر حسب بند الاستبيان</h2>
         <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
           <ResponsiveContainer width="100%" height={210}>
             <BarChart data={criteriaAverages} layout="vertical" margin={{ left: 0, right: 20 }}>
@@ -503,7 +504,7 @@ function OverviewTab({ overallPct, positivePct, responses, supervisors, criteria
 
       {trendData.length > 1 && (
         <section>
-          <h2 style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>اتجاه المؤشر عبر الوقت</h2>
+          <h2 style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>اتجاه المؤشر عبر الوقت</h2>
           <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
             <ResponsiveContainer width="100%" height={160}>
               <LineChart data={trendData} margin={{ left: -20, right: 10 }}>
@@ -520,7 +521,7 @@ function OverviewTab({ overallPct, positivePct, responses, supervisors, criteria
 
       <section>
         <div className="flex items-center justify-between mb-2">
-          <h2 style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14 }}>ترتيب المشرفين</h2>
+          <h2 style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14 }}>ترتيب المشرفين</h2>
         </div>
         <div className="flex flex-col gap-2">
           {supervisorStats.slice(0, 5).map((s, i) => (
@@ -555,7 +556,7 @@ function MonthlyExportCard({ responses, supervisors }) {
 
   return (
     <section>
-      <h2 style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>تصدير تقرير شهري</h2>
+      <h2 style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>تصدير تقرير شهري</h2>
       <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
         <div>
           <label style={{ fontSize: 12, color: C.inkMuted, fontWeight: 600 }}>اختر الشهر</label>
@@ -594,7 +595,7 @@ function SupervisorRow({ s, rank }) {
   const color = s.pct === null ? C.inkMuted : scoreColor(pct);
   return (
     <div className="rounded-xl px-3 py-2.5 flex items-center gap-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-      <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 13, color: C.inkMuted, width: 18 }}>{rank}</span>
+      <span style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 13, color: C.inkMuted, width: 18 }}>{rank}</span>
       <div className="flex-1 min-w-0">
         <p style={{ fontSize: 13, fontWeight: 700, color: C.ink }} className="truncate">{s.name}</p>
         <p style={{ fontSize: 11, color: C.inkMuted }} className="truncate">{s.department}</p>
@@ -602,7 +603,7 @@ function SupervisorRow({ s, rank }) {
       {s.pct === null ? (
         <span style={{ fontSize: 11, color: C.inkMuted }}>لا بيانات</span>
       ) : (
-        <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 15, color }}>{Math.round(pct)}%</span>
+        <span style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 15, color }}>{Math.round(pct)}%</span>
       )}
     </div>
   );
@@ -655,7 +656,7 @@ function SupervisorsTab({ supervisorStats, onSelect, goManage }) {
               <p style={{ fontSize: 11.5, color: C.inkMuted }} className="truncate">{s.department} · {s.count} استبيان</p>
             </div>
             {s.pct !== null ? (
-              <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 16, color }}>{Math.round(pct)}%</span>
+              <span style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 16, color }}>{Math.round(pct)}%</span>
             ) : (
               <span style={{ fontSize: 11, color: C.inkMuted }}>لا بيانات</span>
             )}
@@ -734,13 +735,13 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
       )}
 
       <div className="rounded-3xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-        <p style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 18 }}>{sup.name}</p>
+        <p style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 18 }}>{sup.name}</p>
         <p style={{ fontSize: 12.5, color: C.inkMuted, marginBottom: 12 }}>{sup.department}</p>
         {rs.length === 0 ? (
           <p style={{ fontSize: 12.5, color: C.inkMuted }}>لا توجد استبيانات لهذا المشرف بعد.</p>
         ) : (
           <div className="flex items-center gap-4">
-            <span style={{ fontFamily: 'Tajawal', fontWeight: 900, fontSize: 34, color: scoreColor(overall) }}>{Math.round(overall)}%</span>
+            <span style={{ fontFamily: 'Cairo', fontWeight: 900, fontSize: 34, color: scoreColor(overall) }}>{Math.round(overall)}%</span>
             <div>
               <p style={{ fontSize: 12, fontWeight: 700, color: scoreColor(overall) }}>{scoreLabel(overall)}</p>
               <p style={{ fontSize: 11, color: C.inkMuted }}>{rs.length} استبيان مسجّل</p>
@@ -767,7 +768,7 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
       )}
 
       <section>
-        <h2 style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>سجل الاستبيانات — اضغط أي غرفة لعرض التفاصيل</h2>
+        <h2 style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>سجل الاستبيانات — اضغط أي غرفة لعرض التفاصيل</h2>
         <div className="flex flex-col gap-2">
           {rs.map(r => {
             const vals = CRITERIA.map(c => r.ratings[c.id]);
@@ -786,7 +787,7 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
                     </p>
                     {r.comment && <p style={{ fontSize: 11, color: C.inkMuted }} className="truncate">{r.comment}</p>}
                   </div>
-                  <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 13, color: scoreColor(pct) }}>{Math.round(pct)}%</span>
+                  <span style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 13, color: scoreColor(pct) }}>{Math.round(pct)}%</span>
                   <ChevronRight size={15} color={C.inkMuted} style={{ transform: isOpen ? 'rotate(-90deg)' : 'rotate(180deg)', transition: 'transform 0.15s' }} />
                 </button>
 
@@ -857,7 +858,7 @@ function WhoAreYou({ supervisors, onPick }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="text-center pt-4 pb-1">
-        <p style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 18 }}>من أنت؟</p>
+        <p style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 18 }}>من أنت؟</p>
         <p style={{ fontSize: 12.5, color: C.inkMuted, marginTop: 4 }}>اختر اسمك لبدء الجولة</p>
       </div>
       <div className="flex flex-col gap-2">
@@ -938,7 +939,7 @@ function ManagerGate({ hasPin, managerPin, onCreate, onSuccess, onCancel }) {
           <ShieldCheck size={22} color={C.primary} />
         </div>
         <div className="text-center">
-          <p style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 15 }}>{titles[stage]}</p>
+          <p style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 15 }}>{titles[stage]}</p>
           {!hasPin && stage === 'create' && (
             <p style={{ fontSize: 11.5, color: C.inkMuted, marginTop: 4 }}>هذا الرمز يحمي لوحة المدير والمؤشرات من الوصول غير المصرّح</p>
           )}
@@ -1023,7 +1024,7 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
           <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }} className="truncate">{supervisor.department}</p>
         </div>
         <div className="text-center px-2">
-          <p style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 17, color: '#fff' }}>{todaysCount}</p>
+          <p style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 17, color: '#fff' }}>{todaysCount}</p>
           <p style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.6)' }}>اليوم</p>
         </div>
         {onSwitch && (
@@ -1074,7 +1075,7 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
       {CRITERIA.map((c, i) => (
         <div key={c.id} className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
           <div className="flex items-center gap-2 mb-3">
-            <span style={{ fontFamily: 'Tajawal', fontWeight: 800, fontSize: 12, color: C.primary, background: C.primarySoft, borderRadius: 999, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+            <span style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 12, color: C.primary, background: C.primarySoft, borderRadius: 999, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
             <p style={{ fontSize: 13.5, fontWeight: 700 }}>{c.label}</p>
           </div>
           <RatingPicker value={ratings[c.id]} onChange={(v) => setRatings({ ...ratings, [c.id]: v })} />
@@ -1140,7 +1141,7 @@ function ManageTab({ supervisors, responses, onAdd, onRemove }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-        <p style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 10 }}>إضافة مشرف جديد</p>
+        <p style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 10 }}>إضافة مشرف جديد</p>
         <div className="flex flex-col gap-2">
           <input
             value={name} onChange={e => setName(e.target.value)} placeholder="اسم المشرف"
@@ -1161,7 +1162,7 @@ function ManageTab({ supervisors, responses, onAdd, onRemove }) {
       </div>
 
       <section>
-        <p style={{ fontFamily: 'Tajawal', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>المشرفون الحاليون ({supervisors.length})</p>
+        <p style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>المشرفون الحاليون ({supervisors.length})</p>
         <div className="flex flex-col gap-2">
           {supervisors.length === 0 && <p style={{ fontSize: 12.5, color: C.inkMuted }}>لا يوجد مشرفون بعد.</p>}
           {supervisors.map(s => {
