@@ -299,13 +299,17 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background: #C7D9D6; border-radius: 10px; }
       `}</style>
 
-      {/* Faint logo watermark behind all content */}
-      <img
-        src={logoStar}
-        alt=""
+      {/* Small repeated logo watermark tiled across the whole page */}
+      <div
         aria-hidden="true"
-        className="fixed pointer-events-none select-none"
-        style={{ top: '50%', right: '50%', transform: 'translate(50%, -50%)', width: 480, height: 480, opacity: 0.05, zIndex: 0 }}
+        className="fixed inset-0 pointer-events-none select-none"
+        style={{
+          backgroundImage: `url(${logoStar})`,
+          backgroundRepeat: 'repeat',
+          backgroundSize: '64px 64px',
+          opacity: 0.06,
+          zIndex: 0,
+        }}
       />
 
       <div className="relative" style={{ zIndex: 1 }}>
