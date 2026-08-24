@@ -299,18 +299,8 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background: #C7D9D6; border-radius: 10px; }
       `}</style>
 
-      {/* Small repeated logo watermark tiled across the whole page */}
-      <div
-        aria-hidden="true"
-        className="fixed inset-0 pointer-events-none select-none"
-        style={{
-          backgroundImage: `url(${logoStar})`,
-          backgroundSize: '46px 46px',
-          backgroundRepeat: 'space',
-          opacity: 0.06,
-          zIndex: 0,
-        }}
-      />
+      {/* Small repeated logo watermark tiled across the whole page, with controllable spacing */}
+      <LogoWatermark logo={logoStar} logoSize={44} gap={40} opacity={0.06} />
 
       <div className="relative" style={{ zIndex: 1 }}>
 
@@ -457,6 +447,47 @@ export default function App() {
       </main>
       </div>
     </div>
+  );
+}
+
+// Renders the tiled logo watermark as a canvas-generated pattern, so the
+// gap between logos can be set precisely (plain CSS background-repeat
+// can't add a controllable gap independent of the image's own size).
+function LogoWatermark({ logo, logoSize = 44, gap = 40, opacity = 0.06 }) {
+  const [patternUrl, setPatternUrl] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      const tile = logoSize + gap;
+      const canvas = document.createElement('canvas');
+      canvas.width = tile;
+      canvas.height = tile;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, (tile - logoSize) / 2, (tile - logoSize) / 2, logoSize, logoSize);
+      setPatternUrl(canvas.toDataURL('image/png'));
+    };
+    img.src = logo;
+    return () => { cancelled = true; };
+  }, [logo, logoSize, gap]);
+
+  if (!patternUrl) return null;
+  const tile = logoSize + gap;
+
+  return (
+    <div
+      aria-hidden="true"
+      className="fixed inset-0 pointer-events-none select-none"
+      style={{
+        backgroundImage: `url(${patternUrl})`,
+        backgroundSize: `${tile}px ${tile}px`,
+        backgroundRepeat: 'repeat',
+        opacity,
+        zIndex: 0,
+      }}
+    />
   );
 }
 
