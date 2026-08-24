@@ -1002,15 +1002,11 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
     if (!canSubmit) return;
     onSubmit({ id: uid(), supervisorId: supervisor.id, date, room: room.trim(), patientName: patientName.trim(), ratings, comment });
 
-    // Reset for the next room; auto-advance a numeric room number, but the
-    // patient name always starts blank since it's specific to each patient.
+    // Clear the whole form after saving — nothing carries over to the next entry.
     setRatings({});
     setComment('');
     setPatientName('');
-    setRoom(prev => {
-      const n = parseInt(prev, 10);
-      return Number.isFinite(n) ? String(n + 1) : '';
-    });
+    setRoom('');
     setFlash(true);
     setTimeout(() => setFlash(false), 1200);
   };
@@ -1102,7 +1098,7 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
           boxShadow: canSubmit ? '0 8px 20px rgba(14,92,85,0.3)' : 'none',
         }}
       >
-        <Plus size={16} /> حفظ والانتقال للغرفة التالية
+        <Plus size={16} /> حفظ
       </button>
 
       <button onClick={goOverview} className="text-xs font-semibold text-center" style={{ color: C.inkMuted }}>
