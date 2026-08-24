@@ -303,9 +303,7 @@ export default function App() {
       <header className="sticky top-0 z-20 px-4 pt-4 pb-3" style={{ background: C.primaryDeep }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="rounded-xl p-2 flex items-center justify-center" style={{ background: '#fff', width: 72, height: 72 }}>
-              <img src={logoStar} alt="تجمع القصيم الصحي" style={{ width: 60, height: 60, objectFit: 'contain' }} />
-            </div>
+            <img src={logoStar} alt="تجمع القصيم الصحي" style={{ width: 60, height: 60, objectFit: 'contain' }} />
             <div>
               <h1 style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 17, color: '#fff' }}>لوحة متابعة النظافة</h1>
               <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>تجمع القصيم الصحي - مستشفى بريدة المركزي</p>
