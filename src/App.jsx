@@ -480,6 +480,13 @@ export default function App() {
           />
         )}
       </main>
+
+      <p
+        className="text-center pb-4"
+        style={{ fontSize: 10.5, color: C.inkMuted, opacity: 0.4, letterSpacing: 0.5 }}
+      >
+        Developed by SMZ
+      </p>
       </div>
     </div>
   );
