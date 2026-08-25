@@ -12,6 +12,7 @@ import { subscribe, writeData } from './lib/storage';
 import { sha256Hex, isValidHash } from './lib/hash';
 import { exportMonthlyReport } from './lib/export';
 import logoStar from './logo-star.png';
+import smzLogo from './smz-logo.png';
 
 // ---------------------------------------------------------------------------
 // Tokens
@@ -484,12 +485,9 @@ export default function App() {
         )}
       </main>
 
-      <p
-        className="text-center pb-4"
-        style={{ fontSize: 10.5, color: C.inkMuted, opacity: 0.4, letterSpacing: 0.5 }}
-      >
-        Developed by SMZ
-      </p>
+      <div className="flex justify-center pb-4">
+        <img src={smzLogo} alt="SMZ" style={{ height: 22, opacity: 0.35, objectFit: 'contain' }} />
+      </div>
       </div>
     </div>
   );
