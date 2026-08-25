@@ -159,7 +159,7 @@ export async function exportMonthlyReport({ responses, supervisors, criteria, sc
   const dataSheet = wb.addWorksheet('البيانات', { views: [{ rightToLeft: true }] });
   const headers = [
     'التاريخ', 'المشرف', 'القسم', 'رقم الغرفة', 'اسم المريض',
-    ...criteria.map((c) => c.short), 'النسبة العامة', 'ملاحظة',
+    ...criteria.map((c) => c.short), 'النسبة العامة', 'ملاحظة', 'الجهاز', 'IP',
   ];
   styleHeaderRow(dataSheet.addRow(headers));
 
@@ -177,6 +177,8 @@ export async function exportMonthlyReport({ responses, supervisors, criteria, sc
       }),
       `${scoreOf(r, criteria)}%`,
       r.comment || '',
+      r.device || '',
+      r.ip || '',
     ]);
     styleDataRow(row);
   });
@@ -184,7 +186,7 @@ export async function exportMonthlyReport({ responses, supervisors, criteria, sc
   dataSheet.columns = [
     { width: 12 }, { width: 18 }, { width: 16 }, { width: 10 }, { width: 16 },
     ...criteria.map(() => ({ width: 14 })),
-    { width: 12 }, { width: 28 },
+    { width: 12 }, { width: 28 }, { width: 20 }, { width: 15 },
   ];
   dataSheet.views = [{ rightToLeft: true, state: 'frozen', ySplit: 1 }];
   const lastColLetter = String.fromCharCode(64 + headers.length); // headers.length <= 26
