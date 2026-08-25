@@ -485,9 +485,9 @@ export default function App() {
         )}
       </main>
 
-      <div className="flex items-center justify-center gap-1.5 pb-4" style={{ opacity: 0.35 }}>
+      <div dir="ltr" className="flex items-center justify-center gap-1.5 pb-4" style={{ opacity: 0.35 }}>
         <span style={{ fontSize: 10.5, color: C.inkMuted, letterSpacing: 0.5 }}>Developed by</span>
-        <img src={smzLogo} alt="SMZ" style={{ height: 18, objectFit: 'contain' }} />
+        <img src={smzLogo} alt="SMZ" style={{ height: 13, objectFit: 'contain' }} />
       </div>
       </div>
     </div>
