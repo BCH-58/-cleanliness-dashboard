@@ -6,7 +6,7 @@ import {
 import {
   Sparkles, Droplets, Users, ClipboardList, TrendingUp, TrendingDown, AlertTriangle,
   CheckCircle2, Settings, Plus, Trash2, X, ChevronRight, Building2, CalendarDays,
-  ArrowRight, Activity, LayoutGrid, Lock, LockOpen, ShieldCheck, Link as LinkIcon, Download
+  ArrowRight, Activity, LayoutGrid, Lock, LockOpen, ShieldCheck, Link as LinkIcon, Download, Pencil
 } from 'lucide-react';
 import { subscribe, writeData } from './lib/storage';
 import { sha256Hex, isValidHash } from './lib/hash';
@@ -476,6 +476,9 @@ export default function App() {
             onRemove={async (id) => {
               await persistSupervisors(supervisors.filter(s => s.id !== id));
               await persistResponses(responses.filter(r => r.supervisorId !== id));
+            }}
+            onUpdate={async (id, updates) => {
+              await persistSupervisors(supervisors.map(s => s.id === id ? { ...s, ...updates } : s));
             }}
           />
         )}
@@ -1214,10 +1217,11 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
 // ---------------------------------------------------------------------------
 // Manage supervisors
 // ---------------------------------------------------------------------------
-function ManageTab({ supervisors, responses, onAdd, onRemove }) {
+function ManageTab({ supervisors, responses, onAdd, onRemove, onUpdate }) {
   const [name, setName] = useState('');
   const [department, setDepartment] = useState('');
   const [copiedId, setCopiedId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
 
   const add = () => {
     if (!name.trim() || !department.trim()) return;
@@ -1266,34 +1270,86 @@ function ManageTab({ supervisors, responses, onAdd, onRemove }) {
           {supervisors.length === 0 && <p style={{ fontSize: 12.5, color: C.inkMuted }}>لا يوجد مشرفون بعد.</p>}
           {supervisors.map(s => {
             const count = responses.filter(r => r.supervisorId === s.id).length;
+            const isEditing = editingId === s.id;
             return (
               <div key={s.id} className="rounded-xl px-3 py-2.5 flex flex-col gap-2" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p style={{ fontSize: 13, fontWeight: 700 }} className="truncate">{s.name}</p>
-                    <p style={{ fontSize: 11, color: C.inkMuted }} className="truncate">{s.department} · {count} استبيان</p>
-                  </div>
-                  <button onClick={() => onRemove(s.id)} className="rounded-lg p-1.5" style={{ background: C.redSoft }}>
-                    <Trash2 size={14} color={C.red} />
-                  </button>
-                </div>
+                {isEditing ? (
+                  <SupervisorEditor
+                    supervisor={s}
+                    onSave={(updates) => { onUpdate(s.id, updates); setEditingId(null); }}
+                    onCancel={() => setEditingId(null)}
+                  />
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p style={{ fontSize: 13, fontWeight: 700 }} className="truncate">{s.name}</p>
+                        <p style={{ fontSize: 11, color: C.inkMuted }} className="truncate">{s.department} · {count} استبيان</p>
+                      </div>
+                      <button onClick={() => setEditingId(s.id)} className="rounded-lg p-1.5" style={{ background: C.primarySoft }}>
+                        <Pencil size={14} color={C.primary} />
+                      </button>
+                      <button onClick={() => onRemove(s.id)} className="rounded-lg p-1.5" style={{ background: C.redSoft }}>
+                        <Trash2 size={14} color={C.red} />
+                      </button>
+                    </div>
 
-                <button
-                  onClick={() => copyLink(s)}
-                  className="flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-lg"
-                  style={{ background: copiedId === s.id ? C.primarySoft : C.bg, color: copiedId === s.id ? C.primary : C.ink }}
-                >
-                  {copiedId === s.id ? (
-                    <><CheckCircle2 size={13} /> تم نسخ الرابط</>
-                  ) : (
-                    <><LinkIcon size={13} /> نسخ رابط شخصي</>
-                  )}
-                </button>
+                    <button
+                      onClick={() => copyLink(s)}
+                      className="flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-lg"
+                      style={{ background: copiedId === s.id ? C.primarySoft : C.bg, color: copiedId === s.id ? C.primary : C.ink }}
+                    >
+                      {copiedId === s.id ? (
+                        <><CheckCircle2 size={13} /> تم نسخ الرابط</>
+                      ) : (
+                        <><LinkIcon size={13} /> نسخ رابط شخصي</>
+                      )}
+                    </button>
+                  </>
+                )}
               </div>
             );
           })}
         </div>
       </section>
+    </div>
+  );
+}
+
+function SupervisorEditor({ supervisor, onSave, onCancel }) {
+  const [name, setName] = useState(supervisor.name);
+  const [department, setDepartment] = useState(supervisor.department);
+
+  const save = () => {
+    if (!name.trim() || !department.trim()) return;
+    onSave({ name: name.trim(), department: department.trim() });
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        value={name}
+        onChange={e => setName(e.target.value)}
+        placeholder="اسم المشرف"
+        autoFocus
+        className="rounded-xl px-3 py-2.5 text-sm"
+        style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+      />
+      <input
+        value={department}
+        onChange={e => setDepartment(e.target.value)}
+        placeholder="القسم المسؤول عنه"
+        className="rounded-xl px-3 py-2.5 text-sm"
+        style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+      />
+      <div className="flex gap-2">
+        <button onClick={save} className="flex-1 rounded-xl py-2 text-xs font-bold" style={{ background: C.primary, color: '#fff' }}>
+          حفظ
+        </button>
+        <button onClick={onCancel} className="flex-1 rounded-xl py-2 text-xs font-semibold" style={{ background: C.bg, color: C.inkMuted, border: `1px solid ${C.border}` }}>
+          إلغاء
+        </button>
+      </div>
     </div>
   );
 }
