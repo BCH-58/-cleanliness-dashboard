@@ -47,6 +47,11 @@ const SCALE = [
   { value: 1, label: 'سيء', color: C.red },
 ];
 
+// Fixed accountability thresholds — a supervisor is flagged if either
+// condition is met. Not manager-configurable by design.
+const ACCOUNTABILITY_PCT_THRESHOLD = 70; // overall score below this
+const ACCOUNTABILITY_BAD_REPEAT_THRESHOLD = 3; // "سيء" on the same item this many times or more
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -203,6 +208,7 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [supervisors, setSupervisors] = useState([]);
   const [responses, setResponses] = useState([]);
+  const [accountabilityRecords, setAccountabilityRecords] = useState([]);
   const [tab, setTab] = useState('round'); // round | overview | supervisors | manage
   const [selectedSupId, setSelectedSupId] = useState(null);
 
@@ -228,14 +234,15 @@ export default function App() {
   // a supervisor's phone appears on the manager's screen automatically —
   // no manual refresh needed.
   useEffect(() => {
-    let sReady = false, rReady = false, mReady = false;
-    const checkLoaded = () => { if (sReady && rReady && mReady) setLoaded(true); };
+    let sReady = false, rReady = false, mReady = false, aReady = false;
+    const checkLoaded = () => { if (sReady && rReady && mReady && aReady) setLoaded(true); };
 
     const unsubSup = subscribe('supervisors', (v) => { setSupervisors(v); sReady = true; checkLoaded(); }, []);
     const unsubResp = subscribe('responses', (v) => { setResponses(v); rReady = true; checkLoaded(); }, []);
     const unsubPin = subscribe('managerPin', (v) => { setManagerPin(v); mReady = true; checkLoaded(); }, null);
+    const unsubAcc = subscribe('accountability', (v) => { setAccountabilityRecords(v); aReady = true; checkLoaded(); }, []);
 
-    return () => { unsubSup(); unsubResp(); unsubPin(); };
+    return () => { unsubSup(); unsubResp(); unsubPin(); unsubAcc(); };
   }, []);
 
   const persistSupervisors = async (next) => {
@@ -249,6 +256,10 @@ export default function App() {
   const persistManagerPin = async (pin) => {
     setManagerPin(pin);
     await writeData('managerPin', pin);
+  };
+  const persistAccountabilityRecords = async (next) => {
+    setAccountabilityRecords(next);
+    await writeData('accountability', next);
   };
 
   const requestManagerTab = (targetTab) => {
@@ -315,7 +326,30 @@ export default function App() {
       }));
   }, [responses]);
 
-  const lowPerformer = supervisorStats.filter(s => s.pct !== null).slice(-1)[0];
+  // Accountability: a supervisor is flagged if their overall score is below
+  // the threshold, or if any single item has repeated "سيء" ratings.
+  const accountabilityFlags = useMemo(() => {
+    const map = {};
+    supervisors.forEach(s => {
+      const rs = responses.filter(r => r.supervisorId === s.id);
+      if (rs.length === 0) return;
+      const vals = [];
+      rs.forEach(r => CRITERIA.forEach(c => vals.push(r.ratings[c.id])));
+      const pct = ((vals.reduce((a, b) => a + b, 0) / vals.length - 1) / 3) * 100;
+      const pctFlag = pct < ACCOUNTABILITY_PCT_THRESHOLD;
+
+      const badCriteria = CRITERIA.filter(c => {
+        const badCount = rs.filter(r => r.ratings[c.id] === 1).length;
+        return badCount >= ACCOUNTABILITY_BAD_REPEAT_THRESHOLD;
+      });
+      const repeatedBadFlag = badCriteria.length > 0;
+
+      if (pctFlag || repeatedBadFlag) {
+        map[s.id] = { pctFlag, repeatedBadFlag, badCriteria, pct: Math.round(pct) };
+      }
+    });
+    return map;
+  }, [supervisors, responses]);
 
   if (!loaded) {
     return (
@@ -430,14 +464,16 @@ export default function App() {
             criteriaAverages={criteriaAverages}
             supervisorStats={supervisorStats}
             trendData={trendData}
-            lowPerformer={lowPerformer}
+            accountabilityFlags={accountabilityFlags}
             goEntry={() => setTab('round')}
+            onSelectSupervisor={(id) => { setSelectedSupId(id); setTab('supervisors'); }}
           />
         )}
 
         {tab === 'supervisors' && managerUnlocked && !selectedSupId && (
           <SupervisorsTab
             supervisorStats={supervisorStats}
+            accountabilityFlags={accountabilityFlags}
             onSelect={setSelectedSupId}
             goManage={() => requestManagerTab('manage')}
           />
@@ -448,9 +484,17 @@ export default function App() {
             supId={selectedSupId}
             supervisors={supervisors}
             responses={responses}
+            accountabilityFlags={accountabilityFlags}
+            accountabilityRecords={accountabilityRecords}
             onBack={() => setSelectedSupId(null)}
             onClearResponses={async (supervisorId) => {
               await persistResponses(responses.filter(r => r.supervisorId !== supervisorId));
+            }}
+            onAddAccountabilityRecord={async (record) => {
+              await persistAccountabilityRecords([...accountabilityRecords, record]);
+            }}
+            onRemoveAccountabilityRecord={async (recordId) => {
+              await persistAccountabilityRecords(accountabilityRecords.filter(r => r.id !== recordId));
             }}
           />
         )}
@@ -539,7 +583,7 @@ function LogoWatermark({ logo, logoSize = 44, gap = 40, opacity = 0.06 }) {
 // ---------------------------------------------------------------------------
 // Overview
 // ---------------------------------------------------------------------------
-function OverviewTab({ overallPct, positivePct, responses, supervisors, criteriaAverages, supervisorStats, trendData, lowPerformer, goEntry }) {
+function OverviewTab({ overallPct, positivePct, responses, supervisors, criteriaAverages, supervisorStats, trendData, accountabilityFlags, goEntry, onSelectSupervisor }) {
   if (supervisors.length === 0) {
     return <EmptyState message="ابدأ بإضافة المشرفين والأقسام من تبويب الإعدادات." icon={Users} />;
   }
@@ -553,6 +597,9 @@ function OverviewTab({ overallPct, positivePct, responses, supervisors, criteria
     );
   }
 
+  const flaggedIds = Object.keys(accountabilityFlags);
+  const flaggedSupervisors = supervisorStats.filter(s => flaggedIds.includes(s.id));
+
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-3xl p-5 flex flex-col items-center" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
@@ -565,13 +612,39 @@ function OverviewTab({ overallPct, positivePct, responses, supervisors, criteria
         <StatPill icon={Users} label="عدد المشرفين" value={supervisors.length} sub={`${responses.length} استبيان`} />
       </div>
 
-      {lowPerformer && lowPerformer.pct !== null && lowPerformer.pct < 70 && (
-        <div className="rounded-2xl p-3 flex items-center gap-3" style={{ background: C.redSoft, border: `1px solid ${C.red}30` }}>
-          <AlertTriangle size={18} color={C.red} />
-          <p style={{ fontSize: 12.5, color: C.ink }}>
-            <span style={{ fontWeight: 700 }}>{lowPerformer.name}</span> ({lowPerformer.department}) بحاجة لمتابعة — المؤشر {Math.round(lowPerformer.pct)}%
-          </p>
-        </div>
+      {flaggedSupervisors.length > 0 && (
+        <section>
+          <h2 style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 8, color: C.red }}>
+            بحاجة لمحاسبة ({flaggedSupervisors.length})
+          </h2>
+          <div className="flex flex-col gap-2">
+            {flaggedSupervisors.map(s => {
+              const flag = accountabilityFlags[s.id];
+              const reasons = [];
+              if (flag.pctFlag) reasons.push(`المؤشر ${flag.pct}% (أقل من ${ACCOUNTABILITY_PCT_THRESHOLD}%)`);
+              if (flag.repeatedBadFlag) reasons.push(`تقييم سيء متكرر في: ${flag.badCriteria.map(c => c.short).join('، ')}`);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => onSelectSupervisor(s.id)}
+                  className="rounded-2xl p-3 flex items-start gap-3 text-right"
+                  style={{ background: C.redSoft, border: `1px solid ${C.red}30` }}
+                >
+                  <AlertTriangle size={18} color={C.red} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontSize: 12.5, color: C.ink }}>
+                      <span style={{ fontWeight: 700 }}>{s.name}</span> ({s.department})
+                    </p>
+                    {reasons.map((r, i) => (
+                      <p key={i} style={{ fontSize: 11, color: C.red, marginTop: 2 }}>• {r}</p>
+                    ))}
+                  </div>
+                  <ChevronRight size={15} color={C.red} style={{ transform: 'rotate(180deg)', flexShrink: 0 }} />
+                </button>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       <section>
@@ -722,7 +795,7 @@ function EmptyState({ message, icon: Icon, action }) {
 // ---------------------------------------------------------------------------
 // Supervisors list + detail
 // ---------------------------------------------------------------------------
-function SupervisorsTab({ supervisorStats, onSelect, goManage }) {
+function SupervisorsTab({ supervisorStats, accountabilityFlags, onSelect, goManage }) {
   if (supervisorStats.length === 0) {
     return <EmptyState message="لم تتم إضافة أي مشرف بعد." icon={Users} action={{ label: 'إضافة مشرف', onClick: goManage }} />;
   }
@@ -731,15 +804,16 @@ function SupervisorsTab({ supervisorStats, onSelect, goManage }) {
       {supervisorStats.map(s => {
         const pct = s.pct ?? 0;
         const color = s.pct === null ? C.inkMuted : scoreColor(pct);
+        const flagged = !!accountabilityFlags[s.id];
         return (
           <button
             key={s.id}
             onClick={() => onSelect(s.id)}
             className="rounded-2xl px-4 py-3 flex items-center gap-3 text-right"
-            style={{ background: C.surface, border: `1px solid ${C.border}` }}
+            style={{ background: C.surface, border: `1px solid ${flagged ? C.red : C.border}` }}
           >
-            <div className="rounded-xl p-2" style={{ background: C.primarySoft }}>
-              <Building2 size={17} color={C.primary} />
+            <div className="rounded-xl p-2" style={{ background: flagged ? C.redSoft : C.primarySoft }}>
+              {flagged ? <AlertTriangle size={17} color={C.red} /> : <Building2 size={17} color={C.primary} />}
             </div>
             <div className="flex-1 min-w-0">
               <p style={{ fontSize: 14, fontWeight: 700 }} className="truncate">{s.name}</p>
@@ -758,11 +832,13 @@ function SupervisorsTab({ supervisorStats, onSelect, goManage }) {
   );
 }
 
-function SupervisorDetail({ supId, supervisors, responses, onBack, onClearResponses }) {
+function SupervisorDetail({ supId, supervisors, responses, accountabilityFlags, accountabilityRecords, onBack, onClearResponses, onAddAccountabilityRecord, onRemoveAccountabilityRecord }) {
   const sup = supervisors.find(s => s.id === supId);
   const rs = responses.filter(r => r.supervisorId === supId).sort((a, b) => b.date.localeCompare(a.date));
   const [expandedId, setExpandedId] = useState(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [confirmingRemoveId, setConfirmingRemoveId] = useState(null);
 
   const criteriaAverages = CRITERIA.map(c => {
     const vals = rs.map(r => r.ratings[c.id]);
@@ -775,9 +851,29 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
 
   if (!sup) return null;
 
+  const flag = accountabilityFlags[supId];
+  const records = accountabilityRecords.filter(r => r.supervisorId === supId).sort((a, b) => b.date.localeCompare(a.date));
+
   const handleClear = async () => {
     await onClearResponses(supId);
     setConfirmingClear(false);
+  };
+
+  const addRecord = async () => {
+    if (!noteText.trim()) return;
+    await onAddAccountabilityRecord({
+      id: uid(),
+      supervisorId: supId,
+      date: todayStr(),
+      note: noteText.trim(),
+      pctAtTime: flag ? flag.pct : null,
+    });
+    setNoteText('');
+  };
+
+  const removeRecord = async (recordId) => {
+    await onRemoveAccountabilityRecord(recordId);
+    setConfirmingRemoveId(null);
   };
 
   return (
@@ -840,6 +936,42 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
         )}
       </div>
 
+      {flag && (
+        <div className="rounded-2xl p-4" style={{ background: C.redSoft, border: `1px solid ${C.red}40` }}>
+          <div className="flex items-start gap-2 mb-3">
+            <AlertTriangle size={17} color={C.red} style={{ marginTop: 1, flexShrink: 0 }} />
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 700, color: C.red }}>هذا المشرف بحاجة لمحاسبة</p>
+              {flag.pctFlag && (
+                <p style={{ fontSize: 11.5, color: C.ink, marginTop: 2 }}>• المؤشر العام {flag.pct}% (أقل من {ACCOUNTABILITY_PCT_THRESHOLD}%)</p>
+              )}
+              {flag.repeatedBadFlag && (
+                <p style={{ fontSize: 11.5, color: C.ink, marginTop: 2 }}>
+                  • تقييم "سيء" متكرر {ACCOUNTABILITY_BAD_REPEAT_THRESHOLD}+ مرات في: {flag.badCriteria.map(c => c.short).join('، ')}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <textarea
+            value={noteText}
+            onChange={e => setNoteText(e.target.value)}
+            placeholder="اكتب ملاحظة أو الإجراء المتخذ (مثال: تم التنبيه شفهيًا بتاريخ ...)"
+            rows={2}
+            className="w-full rounded-xl px-3 py-2.5 text-sm resize-none"
+            style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.ink }}
+          />
+          <button
+            onClick={addRecord}
+            disabled={!noteText.trim()}
+            className="w-full mt-2 rounded-xl py-2 text-xs font-bold flex items-center justify-center gap-1.5"
+            style={{ background: noteText.trim() ? C.red : C.border, color: noteText.trim() ? '#fff' : C.inkMuted }}
+          >
+            <Plus size={14} /> إضافة سجل محاسبة
+          </button>
+        </div>
+      )}
+
       {rs.length > 0 && (
         <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
           <ResponsiveContainer width="100%" height={200}>
@@ -855,6 +987,36 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
             </BarChart>
           </ResponsiveContainer>
         </div>
+      )}
+
+      {records.length > 0 && (
+        <section>
+          <h2 style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>سجل المحاسبة ({records.length})</h2>
+          <div className="flex flex-col gap-2">
+            {records.map(rec => (
+              <div key={rec.id} className="rounded-xl p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontSize: 11, color: C.inkMuted }}>
+                      {rec.date} {rec.pctAtTime !== null && `· المؤشر وقتها ${rec.pctAtTime}%`}
+                    </p>
+                    <p style={{ fontSize: 12.5, color: C.ink, marginTop: 3 }}>{rec.note}</p>
+                  </div>
+                  {confirmingRemoveId === rec.id ? (
+                    <div className="flex gap-1 flex-shrink-0">
+                      <button onClick={() => removeRecord(rec.id)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ background: C.red, color: '#fff' }}>تأكيد</button>
+                      <button onClick={() => setConfirmingRemoveId(null)} className="text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: C.bg, color: C.inkMuted }}>إلغاء</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmingRemoveId(rec.id)} className="flex-shrink-0 rounded-lg p-1.5" style={{ background: C.redSoft }}>
+                      <Trash2 size={13} color={C.red} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       <section>
