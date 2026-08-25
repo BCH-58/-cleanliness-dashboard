@@ -50,6 +50,41 @@ const SCALE = [
 const uid = () => Math.random().toString(36).slice(2, 10);
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+// A short, human-readable device/browser label parsed from the user agent —
+// no permissions or network calls needed, works fully offline.
+function getDeviceLabel() {
+  const ua = navigator.userAgent || '';
+  let os = 'جهاز غير معروف';
+  if (/iPhone/i.test(ua)) os = 'iPhone';
+  else if (/iPad/i.test(ua)) os = 'iPad';
+  else if (/Android/i.test(ua)) os = 'Android';
+  else if (/Windows/i.test(ua)) os = 'Windows';
+  else if (/Macintosh|Mac OS/i.test(ua)) os = 'Mac';
+  else if (/Linux/i.test(ua)) os = 'Linux';
+
+  let browser = '';
+  if (/SamsungBrowser/i.test(ua)) browser = 'Samsung Browser';
+  else if (/Edg\//i.test(ua)) browser = 'Edge';
+  else if (/CriOS|Chrome/i.test(ua)) browser = 'Chrome';
+  else if (/FxiOS|Firefox/i.test(ua)) browser = 'Firefox';
+  else if (/Safari/i.test(ua)) browser = 'Safari';
+
+  return browser ? `${os} · ${browser}` : os;
+}
+
+// Best-effort public IP lookup; resolves to null (never throws) if the
+// request fails or is blocked, so it never holds up saving a survey.
+async function getClientIp() {
+  try {
+    const res = await fetch('https://api.ipify.org?format=json');
+    const data = await res.json();
+    return data.ip || null;
+  } catch {
+    return null;
+  }
+}
+
+
 function scoreColor(pct) {
   if (pct >= 85) return C.primary;
   if (pct >= 70) return C.green;
@@ -1032,6 +1067,15 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
   const [ratings, setRatings] = useState({});
   const [comment, setComment] = useState('');
   const [flash, setFlash] = useState(false);
+  const [clientIp, setClientIp] = useState(null);
+  const [device] = useState(getDeviceLabel);
+
+  // Look up the public IP once per session (best-effort — stays null if it fails).
+  useEffect(() => {
+    let cancelled = false;
+    getClientIp().then((ip) => { if (!cancelled) setClientIp(ip); });
+    return () => { cancelled = true; };
+  }, []);
 
   const todaysCount = responses.filter(r => r.supervisorId === supervisor.id && r.date === date).length;
 
@@ -1046,7 +1090,10 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
 
   const submit = () => {
     if (!canSubmit) return;
-    onSubmit({ id: uid(), supervisorId: supervisor.id, date, room: room.trim(), patientName: patientName.trim(), ratings, comment });
+    onSubmit({
+      id: uid(), supervisorId: supervisor.id, date, room: room.trim(), patientName: patientName.trim(),
+      ratings, comment, device, ip: clientIp,
+    });
 
     // Clear the whole form after saving — nothing carries over to the next entry.
     setRatings({});
