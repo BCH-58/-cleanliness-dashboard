@@ -328,7 +328,7 @@ export default function App() {
   return (
     <div dir="rtl" className="min-h-screen w-full relative" style={{ background: C.bg, fontFamily: 'IBM Plex Sans Arabic, sans-serif', color: C.ink }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Sacramento&display=swap');
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { height: 6px; width: 6px; }
         ::-webkit-scrollbar-thumb { background: #C7D9D6; border-radius: 10px; }
@@ -486,9 +486,9 @@ export default function App() {
 
       <p
         className="text-center pb-4"
-        style={{ fontSize: 10.5, color: C.inkMuted, opacity: 0.4, letterSpacing: 0.5 }}
+        style={{ fontFamily: 'Sacramento', fontSize: 26, color: C.primary, opacity: 0.35 }}
       >
-        Developed by SMZ
+        SMZ
       </p>
       </div>
     </div>
