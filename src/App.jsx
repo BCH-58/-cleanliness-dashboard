@@ -48,6 +48,17 @@ const SCALE = [
   { value: 1, label: 'سيء', color: C.red },
 ];
 
+// Shown only when a criterion is rated "مقبول" or "سيء" — turns a bare
+// low score into an actionable reason. "سبب آخر" opens a free-text field.
+const OTHER_REASON = 'سبب آخر';
+const REASONS = {
+  room: ['الأرضية متسخة', 'الأسرّة غير نظيفة', 'روائح كريهة', 'المهملات لم تُفرغ', OTHER_REASON],
+  bathroom: ['رائحة كريهة', 'الأرضية مبللة أو متسخة', 'المرحاض غير نظيف', 'لا يوجد مناديل', OTHER_REASON],
+  floor: ['بقع واضحة', 'غبار متراكم', 'أثر انسكاب لم يُنظّف', OTHER_REASON],
+  supplies: ['لا يوجد صابون', 'لا يوجد مناديل', 'حاويات المهملات ممتلئة', OTHER_REASON],
+  response: ['تأخر في الاستجابة', 'لم يتم الرد على الطلب', 'سلوك غير مناسب', OTHER_REASON],
+};
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -885,17 +896,23 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
                     {CRITERIA.map(c => {
                       const v = r.ratings[c.id];
                       const scaleItem = SCALE.find(s => s.value === v);
+                      const reason = r.reasons && r.reasons[c.id];
                       return (
-                        <div key={c.id} className="flex items-center justify-between pt-1.5">
-                          <span style={{ fontSize: 12, color: C.ink }}>{c.label}</span>
-                          <span
-                            style={{
-                              fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 999,
-                              color: '#fff', background: scaleItem ? scaleItem.color : C.inkMuted,
-                            }}
-                          >
-                            {scaleItem ? scaleItem.label : '—'}
-                          </span>
+                        <div key={c.id} className="pt-1.5">
+                          <div className="flex items-center justify-between">
+                            <span style={{ fontSize: 12, color: C.ink }}>{c.label}</span>
+                            <span
+                              style={{
+                                fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 999,
+                                color: '#fff', background: scaleItem ? scaleItem.color : C.inkMuted,
+                              }}
+                            >
+                              {scaleItem ? scaleItem.label : '—'}
+                            </span>
+                          </div>
+                          {reason && (
+                            <p style={{ fontSize: 11, color: C.amber, marginTop: 2 }}>السبب: {reason}</p>
+                          )}
                         </div>
                       );
                     })}
@@ -1074,6 +1091,8 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
   const [patientName, setPatientName] = useState('');
   const [room, setRoom] = useState('');
   const [ratings, setRatings] = useState({});
+  const [reasonChoice, setReasonChoice] = useState({});
+  const [reasonOther, setReasonOther] = useState({});
   const [comment, setComment] = useState('');
   const [flash, setFlash] = useState(false);
   const [clientIp, setClientIp] = useState(null);
@@ -1099,13 +1118,28 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
 
   const submit = () => {
     if (!canSubmit) return;
+
+    const reasons = {};
+    CRITERIA.forEach(c => {
+      const val = ratings[c.id];
+      if (val === 1 || val === 2) {
+        const choice = reasonChoice[c.id];
+        if (choice) {
+          const text = choice === OTHER_REASON ? (reasonOther[c.id] || '').trim() : choice;
+          if (text) reasons[c.id] = text;
+        }
+      }
+    });
+
     onSubmit({
       id: uid(), supervisorId: supervisor.id, date, room: room.trim(), patientName: patientName.trim(),
-      ratings, comment, device, ip: clientIp,
+      ratings, reasons, comment, device, ip: clientIp,
     });
 
     // Clear the whole form after saving — nothing carries over to the next entry.
     setRatings({});
+    setReasonChoice({});
+    setReasonOther({});
     setComment('');
     setPatientName('');
     setRoom('');
@@ -1173,15 +1207,55 @@ function RoundSession({ supervisor, responses, onSubmit, onSwitch, goOverview })
         </div>
       </div>
 
-      {CRITERIA.map((c, i) => (
-        <div key={c.id} className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-          <div className="flex items-center gap-2 mb-3">
-            <span style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 12, color: C.primary, background: C.primarySoft, borderRadius: 999, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
-            <p style={{ fontSize: 13.5, fontWeight: 700 }}>{c.label}</p>
+      {CRITERIA.map((c, i) => {
+        const val = ratings[c.id];
+        const needsReason = val === 1 || val === 2;
+        return (
+          <div key={c.id} className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <span style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 12, color: C.primary, background: C.primarySoft, borderRadius: 999, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+              <p style={{ fontSize: 13.5, fontWeight: 700 }}>{c.label}</p>
+            </div>
+            <RatingPicker value={val} onChange={(v) => setRatings({ ...ratings, [c.id]: v })} />
+
+            {needsReason && (
+              <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                <p style={{ fontSize: 11.5, color: C.inkMuted, fontWeight: 600, marginBottom: 6 }}>وش السبب؟ (اختياري)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {REASONS[c.id].map(r => {
+                    const active = reasonChoice[c.id] === r;
+                    return (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setReasonChoice({ ...reasonChoice, [c.id]: active ? null : r })}
+                        className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                        style={{
+                          background: active ? C.amber : C.bg,
+                          color: active ? '#fff' : C.inkMuted,
+                          border: `1px solid ${active ? C.amber : C.border}`,
+                        }}
+                      >
+                        {r}
+                      </button>
+                    );
+                  })}
+                </div>
+                {reasonChoice[c.id] === OTHER_REASON && (
+                  <input
+                    type="text"
+                    value={reasonOther[c.id] || ''}
+                    onChange={e => setReasonOther({ ...reasonOther, [c.id]: e.target.value })}
+                    placeholder="اكتب السبب"
+                    className="w-full mt-2 rounded-xl px-3 py-2 text-sm"
+                    style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink }}
+                  />
+                )}
+              </div>
+            )}
           </div>
-          <RatingPicker value={ratings[c.id]} onChange={(v) => setRatings({ ...ratings, [c.id]: v })} />
-        </div>
-      ))}
+        );
+      })}
 
       <div className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
         <label style={{ fontSize: 12, color: C.inkMuted, fontWeight: 600 }}>ملاحظة تودّ ذكرها (اختياري)</label>
