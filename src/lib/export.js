@@ -84,7 +84,7 @@ function styleHeaderRow(row) {
 
 function styleDataRow(row) {
   row.eachCell((cell) => {
-    cell.alignment = { horizontal: 'right', vertical: 'middle' };
+    cell.alignment = { horizontal: 'right', vertical: 'middle', wrapText: true };
     cell.border = { bottom: { style: 'hair', color: { argb: 'FFEAEFEE' } } };
   });
 }
@@ -191,7 +191,7 @@ export async function exportMonthlyReport({ responses, supervisors, criteria, sc
   dataSheet.columns = [
     { width: 12 }, { width: 18 }, { width: 16 }, { width: 10 }, { width: 16 },
     ...criteria.map(() => ({ width: 14 })),
-    { width: 12 }, { width: 32 }, { width: 28 }, { width: 20 }, { width: 15 },
+    { width: 12 }, { width: 55 }, { width: 28 }, { width: 20 }, { width: 15 },
   ];
   dataSheet.views = [{ rightToLeft: true, state: 'frozen', ySplit: 1 }];
   const lastColLetter = String.fromCharCode(64 + headers.length); // headers.length <= 26
