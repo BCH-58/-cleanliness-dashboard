@@ -6,7 +6,7 @@ import {
 import {
   Sparkles, Droplets, Users, ClipboardList, TrendingUp, TrendingDown, AlertTriangle,
   CheckCircle2, Settings, Plus, Trash2, X, ChevronRight, Building2, CalendarDays,
-  ArrowRight, Activity, LayoutGrid, Lock, LockOpen, ShieldCheck, Link as LinkIcon, Download, Pencil, Printer
+  ArrowRight, Activity, LayoutGrid, Lock, LockOpen, ShieldCheck, Link as LinkIcon, Download, Pencil
 } from 'lucide-react';
 import { subscribe, writeData } from './lib/storage';
 import { sha256Hex, isValidHash } from './lib/hash';
@@ -333,16 +333,12 @@ export default function App() {
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { height: 6px; width: 6px; }
         ::-webkit-scrollbar-thumb { background: #C7D9D6; border-radius: 10px; }
-        @media print {
-          @page { margin: 14mm; }
-          body { background: #fff !important; }
-        }
       `}</style>
 
       {/* Small repeated logo watermark tiled across the whole page, with controllable spacing */}
       <LogoWatermark logo={logoStar} logoSize={44} gap={40} opacity={0.06} />
 
-      <div className="relative print:hidden" style={{ zIndex: 1 }}>
+      <div className="relative" style={{ zIndex: 1 }}>
 
       {/* Header */}
       <header className="sticky top-0 z-20 px-4 pt-4 pb-3" style={{ background: C.primaryDeep }}>
@@ -494,18 +490,6 @@ export default function App() {
         <img src={smzLogo} alt="SMZ" style={{ height: 13, objectFit: 'contain' }} />
       </div>
       </div>
-
-      {/* Print-only KPI summary — invisible on screen, only appears when printing */}
-      <div className="hidden print:block">
-        <PrintableSummary
-          overallPct={overallPct}
-          positivePct={positivePct}
-          responses={responses}
-          criteriaAverages={criteriaAverages}
-          supervisorStats={supervisorStats}
-          logoStar={logoStar}
-        />
-      </div>
     </div>
   );
 }
@@ -539,7 +523,7 @@ function LogoWatermark({ logo, logoSize = 44, gap = 40, opacity = 0.06 }) {
   return (
     <div
       aria-hidden="true"
-      className="fixed inset-0 pointer-events-none select-none print:hidden"
+      className="fixed inset-0 pointer-events-none select-none"
       style={{
         backgroundImage: `url(${patternUrl})`,
         backgroundSize: `${tile}px ${tile}px`,
@@ -548,80 +532,6 @@ function LogoWatermark({ logo, logoSize = 44, gap = 40, opacity = 0.06 }) {
         zIndex: 0,
       }}
     />
-  );
-}
-
-// A clean, one-page black-and-white-friendly summary meant only for
-// printing — hidden on screen entirely, shown only via the browser's print
-// dialog (see the "hidden print:block" wrapper around it in App).
-function PrintableSummary({ overallPct, positivePct, responses, criteriaAverages, supervisorStats, logoStar }) {
-  const printDate = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
-  const ranked = [...supervisorStats].sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1));
-
-  return (
-    <div dir="rtl" style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', color: '#111', padding: '4mm' }}>
-      <div className="flex items-center justify-between" style={{ borderBottom: '2px solid #111', paddingBottom: 10, marginBottom: 16 }}>
-        <div>
-          <h1 style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 20 }}>لوحة مؤشرات النظافة</h1>
-          <p style={{ fontSize: 12, color: '#555' }}>تجمع القصيم الصحي - مستشفى بريدة المركزي · {printDate}</p>
-        </div>
-        <img src={logoStar} alt="" style={{ width: 48, height: 48, objectFit: 'contain' }} />
-      </div>
-
-      <div className="grid grid-cols-3" style={{ gap: 12, marginBottom: 20 }}>
-        <div style={{ border: '1px solid #999', borderRadius: 8, padding: 12, textAlign: 'center' }}>
-          <p style={{ fontSize: 11, color: '#555' }}>المؤشر العام</p>
-          <p style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 26 }}>{Math.round(overallPct)}%</p>
-        </div>
-        <div style={{ border: '1px solid #999', borderRadius: 8, padding: 12, textAlign: 'center' }}>
-          <p style={{ fontSize: 11, color: '#555' }}>نسبة الرضا الإيجابي</p>
-          <p style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 26 }}>{Math.round(positivePct)}%</p>
-        </div>
-        <div style={{ border: '1px solid #999', borderRadius: 8, padding: 12, textAlign: 'center' }}>
-          <p style={{ fontSize: 11, color: '#555' }}>عدد الاستبيانات</p>
-          <p style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 26 }}>{responses.length}</p>
-        </div>
-      </div>
-
-      <h2 style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>المؤشر حسب بند الاستبيان</h2>
-      <div style={{ marginBottom: 20 }}>
-        {criteriaAverages.map(c => (
-          <div key={c.id} className="flex items-center" style={{ marginBottom: 6, gap: 8 }}>
-            <span style={{ fontSize: 11.5, width: 130, flexShrink: 0 }}>{c.short}</span>
-            <div style={{ flex: 1, height: 12, border: '1px solid #999', borderRadius: 4, overflow: 'hidden' }}>
-              <div style={{ width: `${c.pct}%`, height: '100%', background: '#111' }} />
-            </div>
-            <span style={{ fontSize: 11.5, width: 36, textAlign: 'left', flexShrink: 0 }}>{c.pct}%</span>
-          </div>
-        ))}
-      </div>
-
-      <h2 style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>ترتيب المشرفين</h2>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: 'right', borderBottom: '1.5px solid #111', padding: '5px 4px' }}>#</th>
-            <th style={{ textAlign: 'right', borderBottom: '1.5px solid #111', padding: '5px 4px' }}>المشرف</th>
-            <th style={{ textAlign: 'right', borderBottom: '1.5px solid #111', padding: '5px 4px' }}>القسم</th>
-            <th style={{ textAlign: 'right', borderBottom: '1.5px solid #111', padding: '5px 4px' }}>عدد الاستبيانات</th>
-            <th style={{ textAlign: 'left', borderBottom: '1.5px solid #111', padding: '5px 4px' }}>المؤشر</th>
-          </tr>
-        </thead>
-        <tbody>
-          {ranked.map((s, i) => (
-            <tr key={s.id}>
-              <td style={{ borderBottom: '1px solid #ccc', padding: '5px 4px' }}>{i + 1}</td>
-              <td style={{ borderBottom: '1px solid #ccc', padding: '5px 4px' }}>{s.name}</td>
-              <td style={{ borderBottom: '1px solid #ccc', padding: '5px 4px' }}>{s.department}</td>
-              <td style={{ borderBottom: '1px solid #ccc', padding: '5px 4px' }}>{s.count}</td>
-              <td style={{ borderBottom: '1px solid #ccc', padding: '5px 4px', textAlign: 'left', fontWeight: 700 }}>
-                {s.pct !== null ? `${Math.round(s.pct)}%` : '—'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   );
 }
 
@@ -644,14 +554,6 @@ function OverviewTab({ overallPct, positivePct, responses, supervisors, criteria
 
   return (
     <div className="flex flex-col gap-4">
-      <button
-        onClick={() => window.print()}
-        className="self-end flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
-        style={{ background: C.primarySoft, color: C.primary }}
-      >
-        <Printer size={13} /> طباعة لوحة المؤشرات
-      </button>
-
       <div className="rounded-3xl p-5 flex flex-col items-center" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
         <p style={{ fontSize: 12, color: C.inkMuted, alignSelf: 'flex-start' }}>المؤشر العام للنظافة</p>
         <GaugePulse pct={overallPct} count={responses.length} />
