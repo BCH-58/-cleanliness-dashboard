@@ -577,7 +577,7 @@ function MyScoreView({ supId, supervisors, responses, logoStar }) {
           )}
 
           <p style={{ fontSize: 10.5, color: C.inkMuted, textAlign: 'center', opacity: 0.7 }}>
-            هذا الرابط خاص بك فقط — لا تشاركه مع المرضى، وشاركه فقط مع رابط الاستبيان (رمز الـQR) بشكل منفصل.
+            هذا الرابط خاص بك فقط كمشرف/ه.
           </p>
         </div>
       )}
