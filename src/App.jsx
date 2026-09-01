@@ -228,6 +228,17 @@ export default function App() {
     }
   });
 
+  // A supervisor's "my score" link looks like ?mine=<their id> — a
+  // separate, read-only link (kept private, never handed to patients)
+  // that shows only their own overall score.
+  const [myScoreId] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('mine');
+    } catch {
+      return null;
+    }
+  });
+
   // Manager-only access: overview / supervisors / manage stay hidden and
   // locked behind a manager PIN. Unlock lasts for this session only.
   const [managerPin, setManagerPin] = useState(null);
@@ -335,6 +346,12 @@ export default function App() {
         <p style={{ color: C.inkMuted, fontFamily: 'Cairo' }}>...جارِ التحميل</p>
       </div>
     );
+  }
+
+  // A "my score" link (?mine=<id>) shows a small standalone read-only
+  // screen — nothing else in the app is reachable from it.
+  if (myScoreId) {
+    return <MyScoreView supId={myScoreId} supervisors={supervisors} responses={responses} logoStar={logoStar} />;
   }
 
   return (
@@ -501,6 +518,69 @@ export default function App() {
         <img src={smzLogo} alt="SMZ" style={{ height: 13, objectFit: 'contain' }} />
       </div>
       </div>
+    </div>
+  );
+}
+
+// A supervisor's private, read-only score check — reachable only via their
+// own "?mine=<id>" link, never the one handed to patients. Shows just their
+// own numbers; no access to any other supervisor's data or the manager view.
+function MyScoreView({ supId, supervisors, responses, logoStar }) {
+  const sup = supervisors.find(s => s.id === supId);
+  const rs = responses.filter(r => r.supervisorId === supId);
+
+  const criteriaAverages = CRITERIA.map(c => {
+    const vals = rs.map(r => r.ratings[c.id]);
+    const pct = vals.length ? ((vals.reduce((a, b) => a + b, 0) / vals.length - 1) / 3) * 100 : 0;
+    return { ...c, pct: Math.round(pct) };
+  });
+  const overall = rs.length
+    ? criteriaAverages.reduce((a, b) => a + b.pct, 0) / criteriaAverages.length
+    : 0;
+
+  return (
+    <div dir="rtl" className="min-h-screen w-full flex flex-col items-center" style={{ background: C.bg, fontFamily: 'IBM Plex Sans Arabic, sans-serif', color: C.ink, padding: '24px 16px' }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');`}</style>
+
+      <img src={logoStar} alt="" style={{ width: 44, height: 44, objectFit: 'contain', marginBottom: 10 }} />
+
+      {!sup ? (
+        <p style={{ fontSize: 13, color: C.inkMuted, marginTop: 40 }}>هذا الرابط غير صالح.</p>
+      ) : (
+        <div className="w-full max-w-sm flex flex-col gap-4">
+          <div className="text-center">
+            <p style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 18 }}>{sup.name}</p>
+            <p style={{ fontSize: 12.5, color: C.inkMuted }}>{sup.department}</p>
+          </div>
+
+          <div className="rounded-3xl p-5 flex flex-col items-center" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+            <p style={{ fontSize: 12, color: C.inkMuted, alignSelf: 'flex-start' }}>مؤشرك العام</p>
+            <GaugePulse pct={overall} count={rs.length} />
+          </div>
+
+          {rs.length > 0 && (
+            <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+              <p style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 10, fontFamily: 'Cairo' }}>مؤشرك حسب بند الاستبيان</p>
+              <ResponsiveContainer width="100%" height={190}>
+                <BarChart data={criteriaAverages} layout="vertical" margin={{ left: 0, right: 20 }}>
+                  <CartesianGrid horizontal={false} stroke={C.border} />
+                  <XAxis type="number" domain={[0, 100]} hide />
+                  <YAxis type="category" dataKey="short" width={100} tick={{ fontSize: 11, fill: C.ink }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomBarTooltip />} cursor={{ fill: C.bg }} />
+                  <Bar dataKey="pct" radius={[6, 6, 6, 6]} barSize={16}>
+                    {criteriaAverages.map((c, i) => <Cell key={i} fill={scoreColor(c.pct)} />)}
+                    <LabelList dataKey="pct" position="right" formatter={(v) => `${v}%`} style={{ fontSize: 11, fill: C.inkMuted, fontWeight: 600 }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          <p style={{ fontSize: 10.5, color: C.inkMuted, textAlign: 'center', opacity: 0.7 }}>
+            هذا الرابط خاص بك فقط — لا تشاركه مع المرضى، وشاركه فقط مع رابط الاستبيان (رمز الـQR) بشكل منفصل.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1303,12 +1383,27 @@ function ManageTab({ supervisors, responses, onAdd, onRemove, onUpdate }) {
     setDepartment('');
   };
 
+  const [copiedType, setCopiedType] = useState(null);
+
   const copyLink = async (s) => {
     const url = `${window.location.origin}${window.location.pathname}?s=${s.id}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopiedId(s.id);
-      setTimeout(() => setCopiedId(null), 1800);
+      setCopiedType('link');
+      setTimeout(() => { setCopiedId(null); setCopiedType(null); }, 1800);
+    } catch {
+      window.prompt('انسخ هذا الرابط:', url);
+    }
+  };
+
+  const copyMyScoreLink = async (s) => {
+    const url = `${window.location.origin}${window.location.pathname}?mine=${s.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(s.id);
+      setCopiedType('score');
+      setTimeout(() => { setCopiedId(null); setCopiedType(null); }, 1800);
     } catch {
       window.prompt('انسخ هذا الرابط:', url);
     }
@@ -1370,12 +1465,24 @@ function ManageTab({ supervisors, responses, onAdd, onRemove, onUpdate }) {
                     <button
                       onClick={() => copyLink(s)}
                       className="flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-lg"
-                      style={{ background: copiedId === s.id ? C.primarySoft : C.bg, color: copiedId === s.id ? C.primary : C.ink }}
+                      style={{ background: copiedId === s.id && copiedType === 'link' ? C.primarySoft : C.bg, color: copiedId === s.id && copiedType === 'link' ? C.primary : C.ink }}
                     >
-                      {copiedId === s.id ? (
+                      {copiedId === s.id && copiedType === 'link' ? (
                         <><CheckCircle2 size={13} /> تم نسخ الرابط</>
                       ) : (
-                        <><LinkIcon size={13} /> نسخ رابط شخصي</>
+                        <><LinkIcon size={13} /> نسخ رابط شخصي (لتوليد الـQR)</>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => copyMyScoreLink(s)}
+                      className="flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-lg"
+                      style={{ background: copiedId === s.id && copiedType === 'score' ? C.primarySoft : C.bg, color: copiedId === s.id && copiedType === 'score' ? C.primary : C.ink }}
+                    >
+                      {copiedId === s.id && copiedType === 'score' ? (
+                        <><CheckCircle2 size={13} /> تم نسخ الرابط</>
+                      ) : (
+                        <><Activity size={13} /> نسخ رابط "نسبتي" (له وحده)</>
                       )}
                     </button>
                   </>
