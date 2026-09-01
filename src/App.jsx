@@ -290,11 +290,21 @@ export default function App() {
   };
 
   // --------------------------- derived metrics ---------------------------
+  // All live indicators reset every calendar month — only this month's
+  // submissions count toward a supervisor's current score. Older months
+  // stay fully intact in the database and remain pullable anytime via the
+  // Excel export (which lets you pick any month).
+  const currentMonth = todayStr().slice(0, 7); // YYYY-MM
+  const monthResponses = useMemo(
+    () => responses.filter(r => r.date.startsWith(currentMonth)),
+    [responses, currentMonth]
+  );
+
   const allRatingsFlat = useMemo(() => {
     const out = [];
-    responses.forEach(r => CRITERIA.forEach(c => out.push(r.ratings[c.id])));
+    monthResponses.forEach(r => CRITERIA.forEach(c => out.push(r.ratings[c.id])));
     return out;
-  }, [responses]);
+  }, [monthResponses]);
 
   const overallPct = allRatingsFlat.length
     ? ((allRatingsFlat.reduce((a, b) => a + b, 0) / allRatingsFlat.length - 1) / 3) * 100
@@ -306,25 +316,25 @@ export default function App() {
 
   const criteriaAverages = useMemo(() => {
     return CRITERIA.map(c => {
-      const vals = responses.map(r => r.ratings[c.id]);
+      const vals = monthResponses.map(r => r.ratings[c.id]);
       const pct = vals.length ? ((vals.reduce((a, b) => a + b, 0) / vals.length - 1) / 3) * 100 : 0;
       return { ...c, pct: Math.round(pct) };
     });
-  }, [responses]);
+  }, [monthResponses]);
 
   const supervisorStats = useMemo(() => {
     return supervisors.map(s => {
-      const rs = responses.filter(r => r.supervisorId === s.id);
+      const rs = monthResponses.filter(r => r.supervisorId === s.id);
       const vals = [];
       rs.forEach(r => CRITERIA.forEach(c => vals.push(r.ratings[c.id])));
       const pct = vals.length ? ((vals.reduce((a, b) => a + b, 0) / vals.length - 1) / 3) * 100 : null;
       return { ...s, count: rs.length, pct };
     }).sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1));
-  }, [supervisors, responses]);
+  }, [supervisors, monthResponses]);
 
   const trendData = useMemo(() => {
     const byDate = {};
-    responses.forEach(r => {
+    monthResponses.forEach(r => {
       const vals = CRITERIA.map(c => r.ratings[c.id]);
       const avgPct = ((vals.reduce((a, b) => a + b, 0) / vals.length - 1) / 3) * 100;
       if (!byDate[r.date]) byDate[r.date] = [];
@@ -336,7 +346,7 @@ export default function App() {
         date: date.slice(5),
         score: Math.round(vals.reduce((a, b) => a + b, 0) / vals.length),
       }));
-  }, [responses]);
+  }, [monthResponses]);
 
   const lowPerformer = supervisorStats.filter(s => s.pct !== null).slice(-1)[0];
 
@@ -351,7 +361,7 @@ export default function App() {
   // A "my score" link (?mine=<id>) shows a small standalone read-only
   // screen — nothing else in the app is reachable from it.
   if (myScoreId) {
-    return <MyScoreView supId={myScoreId} supervisors={supervisors} responses={responses} logoStar={logoStar} />;
+    return <MyScoreView supId={myScoreId} supervisors={supervisors} responses={monthResponses} logoStar={logoStar} />;
   }
 
   return (
@@ -454,7 +464,7 @@ export default function App() {
           <OverviewTab
             overallPct={overallPct}
             positivePct={positivePct}
-            responses={responses}
+            responses={monthResponses}
             supervisors={supervisors}
             criteriaAverages={criteriaAverages}
             supervisorStats={supervisorStats}
@@ -476,10 +486,13 @@ export default function App() {
           <SupervisorDetail
             supId={selectedSupId}
             supervisors={supervisors}
-            responses={responses}
+            responses={monthResponses}
             onBack={() => setSelectedSupId(null)}
             onClearResponses={async (supervisorId) => {
-              await persistResponses(responses.filter(r => r.supervisorId !== supervisorId));
+              const idsToRemove = new Set(
+                monthResponses.filter(r => r.supervisorId === supervisorId).map(r => r.id)
+              );
+              await persistResponses(responses.filter(r => !idsToRemove.has(r.id)));
             }}
           />
         )}
@@ -554,7 +567,7 @@ function MyScoreView({ supId, supervisors, responses, logoStar }) {
           </div>
 
           <div className="rounded-3xl p-5 flex flex-col items-center" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-            <p style={{ fontSize: 12, color: C.inkMuted, alignSelf: 'flex-start' }}>مؤشرك العام</p>
+            <p style={{ fontSize: 12, color: C.inkMuted, alignSelf: 'flex-start' }}>مؤشرك لهذا الشهر</p>
             <GaugePulse pct={overall} count={rs.length} />
           </div>
 
@@ -648,7 +661,7 @@ function OverviewTab({ overallPct, positivePct, responses, supervisors, criteria
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-3xl p-5 flex flex-col items-center" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-        <p style={{ fontSize: 12, color: C.inkMuted, alignSelf: 'flex-start' }}>المؤشر العام للنظافة</p>
+        <p style={{ fontSize: 12, color: C.inkMuted, alignSelf: 'flex-start' }}>المؤشر العام للنظافة (هذا الشهر)</p>
         <GaugePulse pct={overallPct} count={responses.length} />
       </div>
 
@@ -837,7 +850,7 @@ function SupervisorsTab({ supervisorStats, onSelect, goManage }) {
             </div>
             <div className="flex-1 min-w-0">
               <p style={{ fontSize: 14, fontWeight: 700 }} className="truncate">{s.name}</p>
-              <p style={{ fontSize: 11.5, color: C.inkMuted }} className="truncate">{s.department} · {s.count} استبيان</p>
+              <p style={{ fontSize: 11.5, color: C.inkMuted }} className="truncate">{s.department} · {s.count} استبيان هذا الشهر</p>
             </div>
             {s.pct !== null ? (
               <span style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 16, color }}>{Math.round(pct)}%</span>
@@ -896,7 +909,7 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
           <div className="flex items-start gap-2">
             <AlertTriangle size={16} color={C.red} style={{ marginTop: 2, flexShrink: 0 }} />
             <p style={{ fontSize: 12.5, color: C.ink }}>
-              بيتم حذف <span style={{ fontWeight: 700 }}>{rs.length}</span> استبيان مسجّل لـ{sup.name} نهائيًا، وما يرجع بعد الحذف. متأكد؟
+              بيتم حذف <span style={{ fontWeight: 700 }}>{rs.length}</span> استبيان مسجّل لـ{sup.name} هذا الشهر نهائيًا، وما يرجع بعد الحذف. متأكد؟
             </p>
           </div>
           <div className="flex gap-2">
@@ -922,13 +935,13 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
         <p style={{ fontFamily: 'Cairo', fontWeight: 800, fontSize: 18 }}>{sup.name}</p>
         <p style={{ fontSize: 12.5, color: C.inkMuted, marginBottom: 12 }}>{sup.department}</p>
         {rs.length === 0 ? (
-          <p style={{ fontSize: 12.5, color: C.inkMuted }}>لا توجد استبيانات لهذا المشرف بعد.</p>
+          <p style={{ fontSize: 12.5, color: C.inkMuted }}>لا توجد استبيانات لهذا المشرف هذا الشهر بعد.</p>
         ) : (
           <div className="flex items-center gap-4">
             <span style={{ fontFamily: 'Cairo', fontWeight: 900, fontSize: 34, color: scoreColor(overall) }}>{Math.round(overall)}%</span>
             <div>
               <p style={{ fontSize: 12, fontWeight: 700, color: scoreColor(overall) }}>{scoreLabel(overall)}</p>
-              <p style={{ fontSize: 11, color: C.inkMuted }}>{rs.length} استبيان مسجّل</p>
+              <p style={{ fontSize: 11, color: C.inkMuted }}>{rs.length} استبيان مسجّل هذا الشهر</p>
             </div>
           </div>
         )}
@@ -954,7 +967,7 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
       )}
 
       <section>
-        <h2 style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>سجل الاستبيانات — اضغط أي غرفة لعرض التفاصيل</h2>
+        <h2 style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>سجل استبيانات هذا الشهر — اضغط أي غرفة لعرض التفاصيل</h2>
         <div className="flex flex-col gap-2">
           {rs.map(r => {
             const vals = CRITERIA.map(c => r.ratings[c.id]);
