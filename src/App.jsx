@@ -52,7 +52,7 @@ const SCALE = [
 // low score into an actionable reason. "سبب آخر" opens a free-text field.
 const OTHER_REASON = 'سبب آخر';
 const REASONS = {
-  room: ['الأرضية متسخة', 'الأسرّة غير نظيفة', 'روائح كريهة', 'المهملات لم تُفرغ', OTHER_REASON],
+  room: ['الأرضية متسخة', 'روائح كريهة', 'المهملات لم تُفرغ', OTHER_REASON],
   bathroom: ['رائحة كريهة', 'الأرضية مبللة أو متسخة', 'المرحاض غير نظيف', 'لا يوجد مناديل', OTHER_REASON],
   floor: ['بقع واضحة', 'غبار متراكم', 'أثر انسكاب لم يُنظّف', OTHER_REASON],
   supplies: ['لا يوجد صابون', 'لا يوجد مناديل', 'حاويات المهملات ممتلئة', OTHER_REASON],
