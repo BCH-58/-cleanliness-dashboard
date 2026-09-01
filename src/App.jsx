@@ -465,6 +465,7 @@ export default function App() {
             overallPct={overallPct}
             positivePct={positivePct}
             responses={monthResponses}
+            allResponses={responses}
             supervisors={supervisors}
             criteriaAverages={criteriaAverages}
             supervisorStats={supervisorStats}
@@ -644,17 +645,20 @@ function LogoWatermark({ logo, logoSize = 44, gap = 40, opacity = 0.06 }) {
 // ---------------------------------------------------------------------------
 // Overview
 // ---------------------------------------------------------------------------
-function OverviewTab({ overallPct, positivePct, responses, supervisors, criteriaAverages, supervisorStats, trendData, lowPerformer, goEntry }) {
+function OverviewTab({ overallPct, positivePct, responses, allResponses, supervisors, criteriaAverages, supervisorStats, trendData, lowPerformer, goEntry }) {
   if (supervisors.length === 0) {
     return <EmptyState message="ابدأ بإضافة المشرفين والأقسام من تبويب الإعدادات." icon={Users} />;
   }
   if (responses.length === 0) {
     return (
-      <EmptyState
-        message="لا توجد استبيانات مسجّلة بعد. سجّل أول استبيان لتبدأ رؤية المؤشرات."
-        icon={ClipboardList}
-        action={{ label: 'تسجيل استبيان', onClick: goEntry }}
-      />
+      <div className="flex flex-col gap-4">
+        <EmptyState
+          message="لا توجد استبيانات مسجّلة هذا الشهر بعد. سجّل أول استبيان لتبدأ رؤية المؤشرات."
+          icon={ClipboardList}
+          action={{ label: 'تسجيل استبيان', onClick: goEntry }}
+        />
+        <MonthlyExportCard responses={allResponses} supervisors={supervisors} />
+      </div>
     );
   }
 
@@ -727,7 +731,7 @@ function OverviewTab({ overallPct, positivePct, responses, supervisors, criteria
         </div>
       </section>
 
-      <MonthlyExportCard responses={responses} supervisors={supervisors} />
+      <MonthlyExportCard responses={allResponses} supervisors={supervisors} />
     </div>
   );
 }
