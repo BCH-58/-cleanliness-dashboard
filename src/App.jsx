@@ -561,6 +561,7 @@ function MyScoreView({ supId, supervisors, responses, logoStar }) {
           {rs.length > 0 && (
             <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
               <p style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 10, fontFamily: 'Cairo' }}>مؤشرك حسب بند الاستبيان</p>
+              <div dir="ltr">
               <ResponsiveContainer width="100%" height={190}>
                 <BarChart data={criteriaAverages} layout="vertical" margin={{ left: 0, right: 20 }}>
                   <CartesianGrid horizontal={false} stroke={C.border} />
@@ -573,6 +574,7 @@ function MyScoreView({ supId, supervisors, responses, logoStar }) {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              </div>
             </div>
           )}
 
@@ -667,6 +669,7 @@ function OverviewTab({ overallPct, positivePct, responses, supervisors, criteria
       <section>
         <h2 style={{ fontFamily: 'Cairo', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>المؤشر حسب بند الاستبيان</h2>
         <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <div dir="ltr">
           <ResponsiveContainer width="100%" height={210}>
             <BarChart data={criteriaAverages} layout="vertical" margin={{ left: 0, right: 20 }}>
               <CartesianGrid horizontal={false} stroke={C.border} />
@@ -679,6 +682,7 @@ function OverviewTab({ overallPct, positivePct, responses, supervisors, criteria
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          </div>
         </div>
       </section>
 
@@ -932,6 +936,7 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
 
       {rs.length > 0 && (
         <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <div dir="ltr">
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={criteriaAverages} layout="vertical" margin={{ left: 0, right: 20 }}>
               <CartesianGrid horizontal={false} stroke={C.border} />
@@ -944,6 +949,7 @@ function SupervisorDetail({ supId, supervisors, responses, onBack, onClearRespon
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          </div>
         </div>
       )}
 
